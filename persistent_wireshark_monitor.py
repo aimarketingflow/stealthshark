@@ -187,6 +187,12 @@ class PersistentWiresharkMonitor:
             self.logger.warning(f"Capture already active on {interface}")
             return
         
+        # Sanitize interface name to prevent path traversal or command injection
+        import re
+        if not re.match(r'^[a-zA-Z0-9._-]+$', interface):
+            self.logger.error(f"Rejected invalid interface name: {repr(interface)}")
+            return
+        
         # Use session timestamp for consistent grouping
         interface_group = self.get_interface_group(interface)
         

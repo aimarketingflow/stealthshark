@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StealthShark Setup Guide - AI Marketing Flow</title>
+    <meta name="description" content="Step-by-step installation and setup guide for StealthShark silent network capture tool. macOS, Linux, and source install instructions.">
+    <style>
+        :root {
+            --bg-body: #0b0d14;
+            --bg-section: #10131c;
+            --bg-card: #161a28;
+            --bg-card-hover: #1c2133;
+            --bg-code: #0d1017;
+            --accent: #00d4ff;
+            --accent2: #00e676;
+            --accent3: #b388ff;
+            --accent4: #ffab40;
+            --red: #ff5252;
+            --text: #e2e4f0;
+            --text-dim: #8b8fa8;
+            --border: #222740;
+            --radius: 16px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-body);
+            color: var(--text);
+            line-height: 1.65;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── NAV ── */
+        .nav {
+            position: sticky; top: 0; z-index: 100;
+            background: rgba(11,13,20,0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+        }
+        .nav-inner {
+            max-width: 1140px; margin: 0 auto;
+            display: flex; align-items: center; justify-content: space-between; height: 60px;
+        }
+        .nav-brand {
+            font-weight: 800; font-size: 18px; color: var(--text);
+            text-decoration: none; display: flex; align-items: center; gap: 8px;
+        }
+        .nav-brand span { color: var(--accent); }
+        .nav-links { display: flex; gap: 28px; list-style: none; }
+        .nav-links a { color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500; transition: color .2s; }
+        .nav-links a:hover { color: var(--accent); }
+
+        /* ── LAYOUT ── */
+        .wrap { max-width: 860px; margin: 0 auto; padding: 0 24px; }
+        section { padding: 64px 0; }
+
+        /* ── HERO ── */
+        .hero {
+            text-align: center; padding: 80px 0 48px;
+            position: relative; overflow: hidden;
+        }
+        .hero::before {
+            content: ''; position: absolute; top: -120px; left: 50%; transform: translateX(-50%);
+            width: 600px; height: 600px;
+            background: radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .hero-icon { font-size: 64px; margin-bottom: 12px; position: relative; }
+        .hero h1 {
+            font-size: clamp(28px, 4vw, 44px); font-weight: 800; line-height: 1.15; margin-bottom: 12px;
+            background: linear-gradient(135deg, #fff 30%, var(--accent));
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .hero .tagline { font-size: 18px; color: var(--accent); font-weight: 600; margin-bottom: 16px; }
+        .hero .desc { max-width: 580px; margin: 0 auto; color: var(--text-dim); font-size: 15px; }
+
+        /* ── BUTTONS ── */
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 12px 24px; border-radius: 10px; font-size: 14px; font-weight: 700;
+            text-decoration: none; transition: all .2s; cursor: pointer; border: none;
+        }
+        .btn-primary { background: var(--accent); color: #0b0d14; }
+        .btn-primary:hover { background: #33dfff; box-shadow: 0 0 24px rgba(0,212,255,0.35); }
+        .btn-outline { background: transparent; color: var(--text); border: 1.5px solid var(--border); }
+        .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+        /* ── TOC ── */
+        .toc {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 28px 32px; margin-bottom: 48px;
+        }
+        .toc h3 { font-size: 16px; font-weight: 700; margin-bottom: 14px; color: var(--accent); }
+        .toc ol { padding-left: 20px; }
+        .toc ol li { margin-bottom: 8px; }
+        .toc ol a { color: var(--text-dim); text-decoration: none; font-size: 14px; font-weight: 500; transition: color .2s; }
+        .toc ol a:hover { color: var(--accent); }
+
+        /* ── SECTION HEADERS ── */
+        .section-header { margin-bottom: 32px; }
+        .section-header h2 {
+            font-size: clamp(22px, 3vw, 30px); font-weight: 800; margin-bottom: 8px;
+            display: flex; align-items: center; gap: 12px;
+        }
+        .section-header h2 .num {
+            width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+            background: linear-gradient(135deg, var(--accent), var(--accent3));
+            color: #fff; font-weight: 900; font-size: 18px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .section-header p { color: var(--text-dim); font-size: 15px; margin-left: 52px; }
+
+        /* ── STEP CONTENT ── */
+        .step-content { margin-left: 52px; }
+
+        /* ── CODE BLOCKS ── */
+        .code-block {
+            background: var(--bg-code); border: 1px solid var(--border); border-radius: 10px;
+            margin: 16px 0; overflow: hidden;
+        }
+        .code-header {
+            background: var(--bg-card); padding: 8px 16px;
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px solid var(--border);
+        }
+        .code-header .lang { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--accent); }
+        .code-header .copy-btn {
+            background: none; border: 1px solid var(--border); border-radius: 6px;
+            color: var(--text-dim); font-size: 11px; padding: 4px 10px; cursor: pointer;
+            font-family: inherit; font-weight: 600; transition: all .2s;
+        }
+        .code-header .copy-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .code-body { padding: 16px 20px; overflow-x: auto; }
+        .code-body pre {
+            font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+            font-size: 13px; line-height: 1.7; color: var(--text); margin: 0; white-space: pre;
+        }
+        .code-body .comment { color: #6a7080; }
+        .code-body .cmd { color: var(--accent2); }
+        .code-body .flag { color: var(--accent4); }
+        .code-body .output { color: var(--text-dim); }
+
+        /* ── INFO / WARNING BOXES ── */
+        .info-box {
+            background: rgba(0,212,255,0.06); border: 1px solid rgba(0,212,255,0.2); border-radius: 10px;
+            padding: 16px 20px; margin: 16px 0; font-size: 14px;
+        }
+        .info-box .label { font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+        .info-box p { color: var(--text-dim); line-height: 1.6; }
+
+        .warn-box {
+            background: rgba(255,171,64,0.06); border: 1px solid rgba(255,171,64,0.2); border-radius: 10px;
+            padding: 16px 20px; margin: 16px 0; font-size: 14px;
+        }
+        .warn-box .label { font-weight: 700; color: var(--accent4); margin-bottom: 4px; }
+        .warn-box p { color: var(--text-dim); line-height: 1.6; }
+
+        .success-box {
+            background: rgba(0,230,118,0.06); border: 1px solid rgba(0,230,118,0.2); border-radius: 10px;
+            padding: 16px 20px; margin: 16px 0; font-size: 14px;
+        }
+        .success-box .label { font-weight: 700; color: var(--accent2); margin-bottom: 4px; }
+        .success-box p { color: var(--text-dim); line-height: 1.6; }
+
+        /* ── CHECKLIST ── */
+        .checklist { list-style: none; margin: 16px 0; }
+        .checklist li {
+            padding: 8px 0; font-size: 14px; color: var(--text-dim);
+            padding-left: 28px; position: relative;
+        }
+        .checklist li::before {
+            content: '✓'; position: absolute; left: 0;
+            color: var(--accent2); font-weight: 700; font-size: 16px;
+        }
+
+        /* ── TABS ── */
+        .tabs { display: flex; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-btn {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+            color: var(--text-dim); font-size: 13px; font-weight: 700; padding: 10px 20px;
+            cursor: pointer; font-family: inherit; transition: all .2s;
+        }
+        .tab-btn:hover { border-color: var(--accent); color: var(--accent); }
+        .tab-btn.active { background: rgba(0,212,255,0.1); border-color: var(--accent); color: var(--accent); }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+
+        /* ── DIVIDER ── */
+        .divider { border: none; border-top: 1px solid var(--border); margin: 48px 0; }
+
+        /* ── SCREENSHOT PLACEHOLDER ── */
+        .screenshot {
+            background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
+            padding: 40px; text-align: center; margin: 20px 0; color: var(--text-dim); font-size: 14px;
+        }
+        .screenshot .sc-icon { font-size: 48px; margin-bottom: 8px; }
+
+        /* ── FOOTER ── */
+        .footer {
+            border-top: 1px solid var(--border); padding: 36px 0; text-align: center;
+        }
+        .footer p { color: var(--text-dim); font-size: 12px; margin-bottom: 6px; }
+        .footer a { color: var(--accent); text-decoration: none; }
+        .footer a:hover { text-decoration: underline; }
+
+        @media (max-width: 600px) {
+            .step-content, .section-header p { margin-left: 0; }
+            .nav-links { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="https://aimarketingflow.com" class="nav-brand">AI Marketing Flow <span>|</span> StealthShark</a>
+        <ul class="nav-links">
+            <li><a href="https://aimarketingflow.com/stealthshark/">Product Page</a></li>
+            <li><a href="https://github.com/aimarketingflow/stealthshark">GitHub</a></li>
+            <li><a href="https://aimarketingflow.com/contact/">Contact</a></li>
+        </ul>
+    </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+    <div class="wrap">
+        <div class="hero-icon">🦈</div>
+        <h1>StealthShark Setup Guide</h1>
+        <div class="tagline">Up and Running in Under 5 Minutes</div>
+        <p class="desc">Choose your install method below. The standalone macOS app requires zero setup. The source install gives you full control and works on macOS and Linux.</p>
+    </div>
+</section>
+
+<!-- ── MAIN CONTENT ── -->
+<div class="wrap">
+
+    <!-- TOC -->
+    <div class="toc">
+        <h3>In This Guide</h3>
+        <ol>
+            <li><a href="#prereqs">Prerequisites &amp; Requirements</a></li>
+            <li><a href="#install">Choose Your Install Method</a></li>
+            <li><a href="#first-launch">First Launch</a></li>
+            <li><a href="#permissions">Granting Capture Permissions</a></li>
+            <li><a href="#verify">Verify It's Working</a></li>
+            <li><a href="#config">Configuration &amp; Settings</a></li>
+            <li><a href="#files">Understanding Your Capture Files</a></li>
+            <li><a href="#updating">Updating StealthShark</a></li>
+            <li><a href="#troubleshooting">Troubleshooting</a></li>
+            <li><a href="#uninstall">Uninstalling</a></li>
+        </ol>
+    </div>
+
+    <!-- ── STEP 1: PREREQUISITES ── -->
+    <section id="prereqs">
+        <div class="section-header">
+            <h2><span class="num">1</span> Prerequisites &amp; Requirements</h2>
+            <p>What you need before installing StealthShark</p>
+        </div>
+        <div class="step-content">
+            <h4 style="margin-bottom:12px; font-size:15px;">System Requirements</h4>
+            <ul class="checklist">
+                <li><strong>macOS 10.13+</strong> (High Sierra or later) for the standalone app</li>
+                <li><strong>macOS or Linux</strong> for the source install</li>
+                <li><strong>50 MB</strong> free disk space for the app (+ space for captures)</li>
+                <li><strong>Admin access</strong> for packet capture permissions</li>
+            </ul>
+
+            <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">For Source Install Only</h4>
+            <ul class="checklist">
+                <li><strong>Python 3.9+</strong> (3.12&ndash;3.14 recommended)</li>
+                <li><strong>pip</strong> (comes with Python)</li>
+                <li><strong>tcpdump</strong> (pre-installed on macOS and most Linux)</li>
+                <li><strong>git</strong> (to clone the repo)</li>
+            </ul>
+
+            <div class="info-box">
+                <div class="label">Don't have Python?</div>
+                <p><strong>macOS:</strong> Install via Homebrew: <code>brew install python3</code><br>
+                <strong>Linux:</strong> <code>sudo apt install python3 python3-pip</code> (Debian/Ubuntu) or <code>sudo dnf install python3 python3-pip</code> (Fedora)</p>
+            </div>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ── STEP 2: INSTALL ── -->
+    <section id="install">
+        <div class="section-header">
+            <h2><span class="num">2</span> Choose Your Install Method</h2>
+            <p>Pick the option that works best for you</p>
+        </div>
+        <div class="step-content">
+
+            <div class="tabs">
+                <button class="tab-btn active" onclick="switchTab('standalone')">Standalone App (macOS)</button>
+                <button class="tab-btn" onclick="switchTab('source')">Source Install (macOS/Linux)</button>
+                <button class="tab-btn" onclick="switchTab('headless')">Headless / Server</button>
+            </div>
+
+            <!-- TAB: Standalone -->
+            <div id="tab-standalone" class="tab-content active">
+                <p style="color:var(--text-dim); font-size:14px; margin-bottom:16px;">
+                    The standalone app bundles everything&mdash;Python, dependencies, and all StealthShark code&mdash;into a single double-click application. No setup required.
+                </p>
+
+                <h4 style="margin-bottom:12px; font-size:15px;">Step 2a: Download</h4>
+                <p style="color:var(--text-dim); font-size:14px; margin-bottom:12px;">Download the latest <code>StealthShark.app</code> from GitHub Releases:</p>
+                <a href="https://github.com/aimarketingflow/stealthshark/releases" class="btn btn-primary" style="margin-bottom:20px;">Download Latest Release &rarr;</a>
+
+                <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Step 2b: Install</h4>
+                <div class="code-block">
+                    <div class="code-header"><span class="lang">Terminal (optional)</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                    <div class="code-body"><pre><span class="comment"># Move to Applications folder</span>
+<span class="cmd">mv</span> ~/Downloads/StealthShark.app /Applications/
+
+<span class="comment"># Or just double-click StealthShark.app wherever you saved it</span></pre></div>
+                </div>
+
+                <div class="warn-box">
+                    <div class="label">First Launch on macOS</div>
+                    <p>macOS may show a security warning: <em>"StealthShark can't be opened because it is from an unidentified developer."</em><br><br>
+                    <strong>Fix:</strong> Go to <strong>System Settings &rarr; Privacy &amp; Security</strong> and click <strong>"Open Anyway"</strong>. You only need to do this once.</p>
+                </div>
+            </div>
+
+            <!-- TAB: Source -->
+            <div id="tab-source" class="tab-content">
+                <p style="color:var(--text-dim); font-size:14px; margin-bottom:16px;">
+                    Install from source for full control, customization, and Linux support.
+                </p>
+
+                <h4 style="margin-bottom:12px; font-size:15px;">Step 2a: Clone the Repository</h4>
+                <div class="code-block">
+                    <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                    <div class="code-body"><pre><span class="cmd">git clone</span> https://github.com/aimarketingflow/stealthshark.git
+<span class="cmd">cd</span> stealthshark</pre></div>
+                </div>
+
+                <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Step 2b: Create a Virtual Environment (Recommended)</h4>
+                <div class="code-block">
+                    <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                    <div class="code-body"><pre><span class="cmd">python3</span> -m venv venv
+<span class="cmd">source</span> venv/bin/activate</pre></div>
+                </div>
+
+                <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Step 2c: Install Dependencies</h4>
+                <div class="code-block">
+                    <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                    <div class="code-body"><pre><span class="cmd">pip install</span> <span class="flag">-r</span> requirements.txt</pre></div>
+                </div>
+
+                <div class="info-box">
+                    <div class="label">What gets installed</div>
+                    <p><strong>PyQt6</strong> (GUI framework), <strong>psutil</strong> (system monitoring), <strong>requests</strong> (HTTP library). Total: ~50 MB.</p>
+                </div>
+
+                <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Step 2d: Verify Installation</h4>
+                <div class="code-block">
+                    <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                    <div class="code-body"><pre><span class="cmd">python3</span> -c "import PyQt6, psutil; print('All dependencies installed!')"</pre></div>
+                </div>
+            </div>
+
+            <!-- TAB: Headless -->
+            <div id="tab-headless" class="tab-content">
+                <p style="color:var(--text-dim); font-size:14px; margin-bottom:16px;">
+                    Run StealthShark as a background daemon on servers or headless systems. No GUI required.
+                </p>
+
+                <h4 style="margin-bottom:12px; font-size:15px;">Step 2a: Clone &amp; Install (minimal)</h4>
+                <div class="code-block">
+                    <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                    <div class="code-body"><pre><span class="cmd">git clone</span> https://github.com/aimarketingflow/stealthshark.git
+<span class="cmd">cd</span> stealthshark
+<span class="cmd">pip3 install</span> psutil</pre></div>
+                </div>
+
+                <div class="info-box">
+                    <div class="label">Headless mode only needs psutil</div>
+                    <p>PyQt6 is only required for the GUI. The persistent monitor daemon (<code>persistent_wireshark_monitor.py</code>) only needs <code>psutil</code>.</p>
+                </div>
+
+                <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Step 2b: Run the Daemon</h4>
+                <div class="code-block">
+                    <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                    <div class="code-body"><pre><span class="comment"># Run in background with default settings (1hr captures, 5s check interval)</span>
+<span class="cmd">sudo python3</span> persistent_wireshark_monitor.py &amp;
+
+<span class="comment"># Or customize duration and interval</span>
+<span class="cmd">sudo python3</span> persistent_wireshark_monitor.py <span class="flag">--duration</span> 3600 <span class="flag">--interval</span> 10 &amp;</pre></div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ── STEP 3: FIRST LAUNCH ── -->
+    <section id="first-launch">
+        <div class="section-header">
+            <h2><span class="num">3</span> First Launch</h2>
+            <p>Starting StealthShark for the first time</p>
+        </div>
+        <div class="step-content">
+
+            <h4 style="margin-bottom:12px; font-size:15px;">Standalone App</h4>
+            <p style="color:var(--text-dim); font-size:14px; margin-bottom:16px;">Double-click <strong>StealthShark.app</strong> in your Applications folder (or wherever you saved it). The GUI will open automatically.</p>
+
+            <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Source Install</h4>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="comment"># Make sure you're in the stealthshark directory</span>
+<span class="cmd">cd</span> stealthshark
+
+<span class="comment"># Launch the GUI</span>
+<span class="cmd">python3</span> multi_interface_shark_gui.py</pre></div>
+            </div>
+
+            <div class="screenshot">
+                <div class="sc-icon">🦈</div>
+                <p>The StealthShark GUI will appear with a dark-themed dashboard showing all discovered network interfaces, real-time stats, and capture controls.</p>
+            </div>
+
+            <p style="color:var(--text-dim); font-size:14px; margin-top:16px;">On first launch, StealthShark will:</p>
+            <ul class="checklist">
+                <li>Discover all network interfaces on your system</li>
+                <li>Create the <code>pcap_captures/</code> directory for storing captures</li>
+                <li>Begin monitoring interface activity in real-time</li>
+                <li>Automatically start compressed captures when traffic is detected</li>
+            </ul>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ── STEP 4: PERMISSIONS ── -->
+    <section id="permissions">
+        <div class="section-header">
+            <h2><span class="num">4</span> Granting Capture Permissions</h2>
+            <p>Packet capture requires elevated permissions on most interfaces</p>
+        </div>
+        <div class="step-content">
+
+            <p style="color:var(--text-dim); font-size:14px; margin-bottom:16px;">
+                StealthShark uses <code>tcpdump</code> to capture packets. Most interfaces (Ethernet, VPN, Wi-Fi) require root/sudo access. Loopback (<code>lo0</code>) works without sudo.
+            </p>
+
+            <h4 style="margin-bottom:12px; font-size:15px;">Option A: Run with Sudo (Simplest)</h4>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="comment"># Source install</span>
+<span class="cmd">sudo python3</span> multi_interface_shark_gui.py
+
+<span class="comment"># Headless daemon</span>
+<span class="cmd">sudo python3</span> persistent_wireshark_monitor.py</pre></div>
+            </div>
+
+            <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Option B: Install ChmodBPF (macOS &mdash; Recommended)</h4>
+            <p style="color:var(--text-dim); font-size:14px; margin-bottom:12px;">
+                If you have Wireshark installed, it includes ChmodBPF which grants capture permissions without sudo:
+            </p>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="comment"># Check if ChmodBPF is installed (from Wireshark)</span>
+<span class="cmd">ls</span> /Library/LaunchDaemons/org.wireshark.ChmodBPF.plist
+
+<span class="comment"># If not installed, install Wireshark from https://www.wireshark.org</span>
+<span class="comment"># During install, check "Install ChmodBPF"</span></pre></div>
+            </div>
+
+            <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Option C: Configure Sudoers (Advanced)</h4>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="comment"># Allow tcpdump without password prompt</span>
+<span class="cmd">sudo visudo</span>
+
+<span class="comment"># Add this line (replace YOUR_USERNAME):</span>
+YOUR_USERNAME ALL=(ALL) NOPASSWD: /usr/sbin/tcpdump</pre></div>
+            </div>
+
+            <div class="warn-box">
+                <div class="label">Security Note</div>
+                <p>Granting NOPASSWD access to tcpdump allows any process running as your user to capture packets. Only use this on trusted machines.</p>
+            </div>
+
+            <p style="color:var(--text-dim); font-size:14px; margin-top:16px;">
+                StealthShark automatically tries methods in order: direct tcpdump &rarr; sudo tcpdump &rarr; fallback. It will prompt for your password if needed.
+            </p>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ── STEP 5: VERIFY ── -->
+    <section id="verify">
+        <div class="section-header">
+            <h2><span class="num">5</span> Verify It's Working</h2>
+            <p>Confirm captures are being saved correctly</p>
+        </div>
+        <div class="step-content">
+
+            <p style="color:var(--text-dim); font-size:14px; margin-bottom:16px;">After launching and granting permissions, verify everything is working:</p>
+
+            <h4 style="margin-bottom:12px; font-size:15px;">Check the GUI</h4>
+            <ul class="checklist">
+                <li>Interface list shows discovered interfaces with UP/DOWN status</li>
+                <li>Status bar shows "Activity detected on: en0, lo0, ..." messages</li>
+                <li>Alert log shows "Started packet capture on [interface]" entries</li>
+            </ul>
+
+            <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Check Capture Files</h4>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="comment"># List active capture files</span>
+<span class="cmd">find</span> pcap_captures/ -name "*.pcap.gz" -exec ls -lh {} \;
+
+<span class="comment"># Expected output (files should be growing):</span>
+<span class="output">-rw-r--r--  15M  pcap_captures/session_.../ethernet/...-ch-en0.pcap.gz
+-rw-r--r--  70M  pcap_captures/session_.../loopback/...-ch-loopback.pcap.gz</span></pre></div>
+            </div>
+
+            <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Check Running Processes</h4>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="comment"># Verify tcpdump processes are running</span>
+<span class="cmd">ps aux</span> | grep tcpdump | grep -v grep
+
+<span class="comment"># You should see one tcpdump per captured interface</span></pre></div>
+            </div>
+
+            <div class="success-box">
+                <div class="label">You're all set!</div>
+                <p>If you see <code>.pcap.gz</code> files growing in size and tcpdump processes running, StealthShark is capturing successfully. Files are compressed in real-time&mdash;expect ~84% smaller than raw pcap.</p>
+            </div>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ── STEP 6: CONFIG ── -->
+    <section id="config">
+        <div class="section-header">
+            <h2><span class="num">6</span> Configuration &amp; Settings</h2>
+            <p>Customize capture duration, directories, and behavior</p>
+        </div>
+        <div class="step-content">
+
+            <h4 style="margin-bottom:12px; font-size:15px;">GUI Settings</h4>
+            <p style="color:var(--text-dim); font-size:14px; margin-bottom:12px;">
+                The GUI provides controls for:
+            </p>
+            <ul class="checklist">
+                <li><strong>Capture Directory</strong> &mdash; where pcap files are saved (default: <code>./pcap_captures</code>)</li>
+                <li><strong>Capture Duration</strong> &mdash; how long each capture session runs (30s to 5 hours)</li>
+                <li><strong>Auto-save</strong> &mdash; session state saved every 30 seconds for crash recovery</li>
+            </ul>
+
+            <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Command-Line Options (Headless)</h4>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="cmd">python3</span> persistent_wireshark_monitor.py \
+    <span class="flag">--capture-dir</span> /path/to/captures \
+    <span class="flag">--duration</span> 3600 \
+    <span class="flag">--interval</span> 5</pre></div>
+            </div>
+
+            <table style="width:100%; border-collapse:separate; border-spacing:0; border:1px solid var(--border); border-radius:10px; overflow:hidden; margin-top:16px; font-size:13px;">
+                <thead>
+                    <tr style="background:var(--bg-card);">
+                        <th style="padding:12px 16px; text-align:left; color:var(--text-dim); font-weight:700;">Flag</th>
+                        <th style="padding:12px 16px; text-align:left; color:var(--text-dim); font-weight:700;">Default</th>
+                        <th style="padding:12px 16px; text-align:left; color:var(--text-dim); font-weight:700;">Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr style="border-top:1px solid var(--border);">
+                        <td style="padding:10px 16px; color:var(--accent); font-family:monospace;">--capture-dir</td>
+                        <td style="padding:10px 16px; color:var(--text-dim);">./pcap_captures</td>
+                        <td style="padding:10px 16px; color:var(--text-dim);">Directory for pcap output</td>
+                    </tr>
+                    <tr style="border-top:1px solid var(--border);">
+                        <td style="padding:10px 16px; color:var(--accent); font-family:monospace;">--duration</td>
+                        <td style="padding:10px 16px; color:var(--text-dim);">3600</td>
+                        <td style="padding:10px 16px; color:var(--text-dim);">Capture duration in seconds (30&ndash;18000)</td>
+                    </tr>
+                    <tr style="border-top:1px solid var(--border);">
+                        <td style="padding:10px 16px; color:var(--accent); font-family:monospace;">--interval</td>
+                        <td style="padding:10px 16px; color:var(--text-dim);">5</td>
+                        <td style="padding:10px 16px; color:var(--text-dim);">Seconds between activity checks</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ── STEP 7: FILES ── -->
+    <section id="files">
+        <div class="section-header">
+            <h2><span class="num">7</span> Understanding Your Capture Files</h2>
+            <p>How captures are organized and how to use them</p>
+        </div>
+        <div class="step-content">
+
+            <h4 style="margin-bottom:12px; font-size:15px;">Directory Structure</h4>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">File Tree</span></div>
+                <div class="code-body"><pre>pcap_captures/
+<span class="comment">  # Active session</span>
+  session_20260211_113028/
+    ethernet/
+      20260211_113028-ch-en0.pcap.gz       <span class="comment"># Ethernet capture</span>
+    vpn/
+      20260211_113028-ch-utun0.pcap.gz     <span class="comment"># VPN tunnel</span>
+    loopback/
+      20260211_113028-ch-loopback.pcap.gz  <span class="comment"># Localhost traffic</span>
+    firewall/
+      20260211_113028-ch-pflog0.pcap.gz    <span class="comment"># Firewall log</span>
+    other/
+      20260211_113028-ch-ipsec0.pcap.gz    <span class="comment"># IPSec</span>
+
+<span class="comment">  # Archived sessions (auto-compressed after 1 hour)</span>
+  session_20260210_090000.tar.gz
+  session_20260209_140000.tar.gz
+
+<span class="comment">  # Logs</span>
+  logs/
+    wireshark_monitor_20260211.log</pre></div>
+            </div>
+
+            <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Opening Captures in Wireshark</h4>
+            <p style="color:var(--text-dim); font-size:14px; margin-bottom:12px;">
+                Wireshark natively supports <code>.pcap.gz</code> files. No decompression needed:
+            </p>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="comment"># Open directly in Wireshark</span>
+<span class="cmd">open</span> -a Wireshark pcap_captures/session_.../ethernet/*.pcap.gz
+
+<span class="comment"># Or drag-and-drop the .pcap.gz file onto the Wireshark window</span>
+
+<span class="comment"># To extract an archived session</span>
+<span class="cmd">tar</span> -xzf pcap_captures/session_20260210_090000.tar.gz</pre></div>
+            </div>
+
+            <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Automatic Maintenance</h4>
+            <ul class="checklist">
+                <li><strong>Auto-archive:</strong> Sessions older than 1 hour are compressed to <code>.tar.gz</code></li>
+                <li><strong>Auto-cleanup:</strong> Archives older than 7 days are automatically deleted</li>
+                <li><strong>Crash recovery:</strong> Session state saved every 30 seconds, restored on relaunch</li>
+            </ul>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ── STEP 8: UPDATING ── -->
+    <section id="updating">
+        <div class="section-header">
+            <h2><span class="num">8</span> Updating StealthShark</h2>
+            <p>How to get the latest version</p>
+        </div>
+        <div class="step-content">
+
+            <h4 style="margin-bottom:12px; font-size:15px;">Standalone App</h4>
+            <p style="color:var(--text-dim); font-size:14px; margin-bottom:12px;">Download the latest release and replace the old app:</p>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="comment"># Replace the old app</span>
+<span class="cmd">rm</span> -rf /Applications/StealthShark.app
+<span class="cmd">mv</span> ~/Downloads/StealthShark.app /Applications/</pre></div>
+            </div>
+
+            <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Source Install</h4>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="cmd">cd</span> stealthshark
+<span class="cmd">git pull</span> origin main
+<span class="cmd">pip install</span> <span class="flag">-r</span> requirements.txt  <span class="comment"># in case deps changed</span></pre></div>
+            </div>
+
+            <div class="info-box">
+                <div class="label">Your captures are safe</div>
+                <p>Updating never touches your <code>pcap_captures/</code> directory. All existing captures, archives, and session data are preserved.</p>
+            </div>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ── STEP 9: TROUBLESHOOTING ── -->
+    <section id="troubleshooting">
+        <div class="section-header">
+            <h2><span class="num">9</span> Troubleshooting</h2>
+            <p>Common issues and how to fix them</p>
+        </div>
+        <div class="step-content">
+
+            <div class="warn-box" style="margin-bottom:20px;">
+                <div class="label">"Permission denied" or empty pcap files</div>
+                <p>tcpdump needs elevated permissions. Run with <code>sudo</code> or install ChmodBPF (see <a href="#permissions" style="color:var(--accent);">Step 4</a>).</p>
+            </div>
+
+            <div class="warn-box" style="margin-bottom:20px;">
+                <div class="label">macOS blocks the app: "unidentified developer"</div>
+                <p>Go to <strong>System Settings &rarr; Privacy &amp; Security</strong>, scroll down, and click <strong>"Open Anyway"</strong> next to the StealthShark message.</p>
+            </div>
+
+            <div class="warn-box" style="margin-bottom:20px;">
+                <div class="label">GUI doesn't appear (source install)</div>
+                <p>Make sure PyQt6 is installed: <code>pip install PyQt6</code>. On Linux, you may also need: <code>sudo apt install libxcb-xinerama0</code>.</p>
+            </div>
+
+            <div class="warn-box" style="margin-bottom:20px;">
+                <div class="label">App seems stuck or unresponsive</div>
+                <p>Kill and restart:<br>
+                <code>pkill -f multi_interface_shark_gui</code><br>
+                Then relaunch. Session state will be restored automatically.</p>
+            </div>
+
+            <div class="warn-box" style="margin-bottom:20px;">
+                <div class="label">Captures are 0 bytes</div>
+                <p>This usually means the interface has no traffic, or tcpdump doesn't have permission on that interface. Check with: <code>sudo tcpdump -i en0 -c 5</code></p>
+            </div>
+
+            <div class="warn-box">
+                <div class="label">Disk filling up</div>
+                <p>StealthShark auto-archives sessions after 1 hour and deletes archives after 7 days. For high-traffic networks, you can reduce capture duration in the GUI settings or use <code>--duration 1800</code> (30 min) for the daemon.</p>
+            </div>
+        </div>
+    </section>
+
+    <hr class="divider">
+
+    <!-- ── STEP 10: UNINSTALL ── -->
+    <section id="uninstall">
+        <div class="section-header">
+            <h2><span class="num">10</span> Uninstalling</h2>
+            <p>Complete removal if needed</p>
+        </div>
+        <div class="step-content">
+
+            <h4 style="margin-bottom:12px; font-size:15px;">Standalone App</h4>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="comment"># Remove the app</span>
+<span class="cmd">rm</span> -rf /Applications/StealthShark.app
+
+<span class="comment"># Remove captures and logs (optional — your data)</span>
+<span class="cmd">rm</span> -rf ~/Documents/Stealthshark2/pcap_captures
+<span class="cmd">rm</span> -rf ~/Documents/Stealthshark2/gui_logs</pre></div>
+            </div>
+
+            <h4 style="margin-top:24px; margin-bottom:12px; font-size:15px;">Source Install</h4>
+            <div class="code-block">
+                <div class="code-header"><span class="lang">Terminal</span><button class="copy-btn" onclick="copyCode(this)">Copy</button></div>
+                <div class="code-body"><pre><span class="comment"># Remove the entire project</span>
+<span class="cmd">rm</span> -rf ~/path/to/stealthshark
+
+<span class="comment"># Or just remove the venv if you want to keep the source</span>
+<span class="cmd">rm</span> -rf ~/path/to/stealthshark/venv</pre></div>
+            </div>
+
+            <div class="info-box">
+                <div class="label">No system modifications</div>
+                <p>StealthShark doesn't install system services, kernel extensions, or modify system files. Deleting the app/folder is a complete uninstall.</p>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+<!-- ── FOOTER ── -->
+<footer class="footer">
+    <div class="wrap">
+        <p>🦈 StealthShark Setup Guide &mdash; <a href="https://aimarketingflow.com">AI Marketing Flow</a></p>
+        <p><a href="https://github.com/aimarketingflow/stealthshark">GitHub</a> &bull; <a href="https://github.com/aimarketingflow/stealthshark/issues">Report a Bug</a> &bull; <a href="mailto:support@aimarketingflow.com">Email Support</a></p>
+        <p style="margin-top:8px;">&copy; 2026 AI Marketing Flow. All rights reserved.</p>
+    </div>
+</footer>
+
+<script>
+function switchTab(tabId) {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+    
+    event.target.classList.add('active');
+    document.getElementById('tab-' + tabId).classList.add('active');
+}
+
+function copyCode(btn) {
+    const code = btn.closest('.code-block').querySelector('pre').textContent;
+    navigator.clipboard.writeText(code).then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'Copied!';
+        btn.style.color = 'var(--accent2)';
+        btn.style.borderColor = 'var(--accent2)';
+        setTimeout(() => {
+            btn.textContent = orig;
+            btn.style.color = '';
+            btn.style.borderColor = '';
+        }, 2000);
+    });
+}
+</script>
+
+</body>
+</html>

@@ -14,6 +14,7 @@ venv/
 venv_*/
 *_venv/
 wireshark_monitor_venv/
+build_venv/
 ENV/
 env/
 

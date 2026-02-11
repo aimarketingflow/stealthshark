@@ -24,9 +24,11 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout
                              QGroupBox, QTableWidget, QTableWidgetItem, QListWidget,
                              QListWidgetItem, QSplitter, QGridLayout, QTreeWidget, 
                              QTreeWidgetItem, QLineEdit, QFileDialog, QMessageBox, 
-                             QStatusBar, QScrollArea, QFrame)
+                             QStatusBar, QScrollArea, QFrame, QSystemTrayIcon,
+                             QMenu, QWizard, QWizardPage, QRadioButton)
 from PyQt6.QtCore import QThread, pyqtSignal, QTimer, Qt, QSize
-from PyQt6.QtGui import QFont, QBrush, QColor, QPalette, QPixmap, QIcon
+from PyQt6.QtGui import QFont, QBrush, QColor, QPalette, QPixmap, QIcon, QAction
+import plistlib
 
 # Import monitoring components
 from persistent_wireshark_monitor import PersistentWiresharkMonitor
@@ -488,6 +490,302 @@ class InterfaceMonitorWidget(QWidget):
             widget.setParent(None)
         self.interface_widgets.clear()
 
+class OnboardingWizard(QWizard):
+    """First-run onboarding wizard for beginners"""
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Welcome to StealthShark")
+        self.setFixedSize(620, 520)
+        self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
+        
+        self.addPage(self._welcome_page())
+        self.addPage(self._permissions_page())
+        self.addPage(self._settings_page())
+        self.addPage(self._finish_page())
+        
+        self.setStyleSheet("""
+            QWizard { background-color: #1a1d27; }
+            QWizardPage { background-color: #1a1d27; color: #e2e4f0; }
+            QLabel { color: #e2e4f0; }
+            QPushButton { background-color: #00d4ff; color: #0b0d14; border: none;
+                          padding: 8px 20px; border-radius: 6px; font-weight: bold; }
+            QPushButton:hover { background-color: #33dfff; }
+            QRadioButton { color: #e2e4f0; spacing: 8px; }
+            QRadioButton::indicator { width: 16px; height: 16px; }
+            QCheckBox { color: #e2e4f0; spacing: 8px; }
+            QCheckBox::indicator { width: 16px; height: 16px; }
+        """)
+    
+    def _welcome_page(self):
+        page = QWizardPage()
+        page.setTitle("Welcome to StealthShark")
+        layout = QVBoxLayout()
+        
+        icon = QLabel("🦈")
+        icon.setFont(QFont("Arial", 48))
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon)
+        
+        title = QLabel("Silent Network Monitoring")
+        title.setFont(QFont("Arial", 18, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("color: #00d4ff; margin-bottom: 12px;")
+        layout.addWidget(title)
+        
+        desc = QLabel(
+            "StealthShark monitors your network in the background with\n"
+            "near-zero resource usage. Captures are compressed in real-time\n"
+            "and organized automatically.\n\n"
+            "This wizard will help you set everything up in under a minute."
+        )
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setStyleSheet("color: #8b8fa8; font-size: 14px; line-height: 1.6;")
+        layout.addWidget(desc)
+        
+        layout.addStretch()
+        page.setLayout(layout)
+        return page
+    
+    def _permissions_page(self):
+        page = QWizardPage()
+        page.setTitle("Capture Permissions")
+        layout = QVBoxLayout()
+        
+        info = QLabel(
+            "StealthShark needs permission to capture network traffic.\n"
+            "This uses the same method as Wireshark (BPF device access)."
+        )
+        info.setStyleSheet("color: #8b8fa8; font-size: 13px; margin-bottom: 12px;")
+        info.setWordWrap(True)
+        layout.addWidget(info)
+        
+        # Disclosure box — explain exactly what will happen
+        disclosure = QLabel(
+            "What this does:\n"
+            "• Creates an 'access_bpf' group (if it doesn't exist)\n"
+            "• Adds your user account to that group\n"
+            "• Sets group-read permission on /dev/bpf* devices\n"
+            "• Only members of this group can capture packets\n"
+            "• No data leaves your machine — this is local only\n"
+            "• Permissions reset on reboot (macOS security feature)"
+        )
+        disclosure.setStyleSheet(
+            "color: #8b8fa8; font-size: 12px; padding: 12px; "
+            "background-color: rgba(0,212,255,0.05); border: 1px solid rgba(0,212,255,0.15); "
+            "border-radius: 8px; margin-bottom: 12px;")
+        disclosure.setWordWrap(True)
+        layout.addWidget(disclosure)
+        
+        # Permission status
+        self.perm_status = QLabel()
+        self.perm_status.setStyleSheet("font-size: 14px; padding: 12px; border-radius: 8px;")
+        layout.addWidget(self.perm_status)
+        
+        self.grant_btn = QPushButton("🔐 Grant Capture Permission")
+        self.grant_btn.setFixedHeight(44)
+        self.grant_btn.clicked.connect(self._grant_permissions)
+        layout.addWidget(self.grant_btn)
+        
+        note = QLabel(
+            "You will see a macOS password prompt. This is required to modify\n"
+            "device permissions. StealthShark never stores your password."
+        )
+        note.setStyleSheet("color: #6a7080; font-size: 12px; margin-top: 8px;")
+        note.setWordWrap(True)
+        layout.addWidget(note)
+        
+        layout.addStretch()
+        page.setLayout(layout)
+        
+        # Check permissions on page show
+        QTimer.singleShot(100, self._check_permissions)
+        return page
+    
+    def _check_permissions(self):
+        """Check if tcpdump capture works without sudo"""
+        try:
+            result = subprocess.run(
+                ['tcpdump', '-i', 'en0', '-c', '0'],
+                capture_output=True, timeout=3
+            )
+            if result.returncode == 0:
+                self.perm_status.setText("✅ Permissions already granted — you're all set!")
+                self.perm_status.setStyleSheet(
+                    "font-size: 14px; padding: 12px; border-radius: 8px; "
+                    "background-color: rgba(0,230,118,0.1); color: #00e676;")
+                self.grant_btn.setText("✅ Already Configured")
+                self.grant_btn.setEnabled(False)
+            else:
+                self._show_needs_permission()
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            self._show_needs_permission()
+    
+    def _show_needs_permission(self):
+        self.perm_status.setText("⚠️ Capture permission needed — click the button below")
+        self.perm_status.setStyleSheet(
+            "font-size: 14px; padding: 12px; border-radius: 8px; "
+            "background-color: rgba(255,171,64,0.1); color: #ffab40;")
+    
+    def _grant_permissions(self):
+        """Grant BPF capture permissions using the access_bpf group method (same as Wireshark ChmodBPF)"""
+        try:
+            username = os.environ.get('USER', subprocess.check_output(['whoami']).decode().strip())
+            # Sanitize username to prevent shell injection in osascript
+            if not re.match(r'^[a-zA-Z0-9._-]+$', username):
+                self.perm_status.setText("⚠️ Invalid username detected — cannot set permissions automatically.")
+                self.perm_status.setStyleSheet(
+                    "font-size: 14px; padding: 12px; border-radius: 8px; "
+                    "background-color: rgba(255,82,82,0.1); color: #ff5252;")
+                return
+            
+            # Secure approach: create access_bpf group, add user, set group-read on BPF devices
+            # This is the same method Wireshark's ChmodBPF installer uses
+            commands = (
+                # Create access_bpf group if it doesn't exist
+                '/usr/sbin/dseditgroup -o read access_bpf 2>/dev/null || '
+                '/usr/sbin/dseditgroup -o create access_bpf; '
+                # Add current user to the group
+                f'/usr/sbin/dseditgroup -o edit -a {username} -t user access_bpf; '
+                # Set BPF devices to group access_bpf with group-read (not world-read)
+                'chgrp access_bpf /dev/bpf*; '
+                'chmod g+r /dev/bpf*'
+            )
+            
+            # Use osascript for a native macOS admin password prompt
+            script = (
+                'do shell script '
+                f'"{commands}" '
+                'with administrator privileges'
+            )
+            
+            result = subprocess.run(
+                ['osascript', '-e', script],
+                capture_output=True, timeout=60
+            )
+            
+            if result.returncode == 0:
+                # Log the permission grant for audit trail
+                log_dir = Path("./gui_logs")
+                log_dir.mkdir(exist_ok=True)
+                audit_file = log_dir / "permission_audit.log"
+                with open(audit_file, 'a') as f:
+                    f.write(f"{datetime.now().isoformat()} | GRANTED | "
+                            f"user={username} | method=access_bpf_group | "
+                            f"action=chgrp+chmod_g+r_/dev/bpf*\n")
+                
+                self.perm_status.setText("✅ Permissions granted! You're in the access_bpf group.")
+                self.perm_status.setStyleSheet(
+                    "font-size: 14px; padding: 12px; border-radius: 8px; "
+                    "background-color: rgba(0,230,118,0.1); color: #00e676;")
+                self.grant_btn.setText("✅ Done")
+                self.grant_btn.setEnabled(False)
+            else:
+                stderr = result.stderr.decode().strip() if result.stderr else ''
+                # Log the denial
+                log_dir = Path("./gui_logs")
+                log_dir.mkdir(exist_ok=True)
+                audit_file = log_dir / "permission_audit.log"
+                with open(audit_file, 'a') as f:
+                    f.write(f"{datetime.now().isoformat()} | DENIED | "
+                            f"user={username} | error={stderr[:100]}\n")
+                
+                self.perm_status.setText("❌ Permission was denied. You can still run with sudo later.")
+                self.perm_status.setStyleSheet(
+                    "font-size: 14px; padding: 12px; border-radius: 8px; "
+                    "background-color: rgba(255,82,82,0.1); color: #ff5252;")
+        except subprocess.TimeoutExpired:
+            self.perm_status.setText("⏱️ Timed out — you can grant permissions later.")
+            self.perm_status.setStyleSheet(
+                "font-size: 14px; padding: 12px; border-radius: 8px; "
+                "background-color: rgba(255,171,64,0.1); color: #ffab40;")
+        except Exception as e:
+            self.perm_status.setText(f"⚠️ Could not set permissions: {str(e)[:60]}")
+    
+    def _settings_page(self):
+        page = QWizardPage()
+        page.setTitle("Quick Settings")
+        layout = QVBoxLayout()
+        
+        info = QLabel("Choose how StealthShark should run:")
+        info.setStyleSheet("color: #8b8fa8; font-size: 13px; margin-bottom: 20px;")
+        layout.addWidget(info)
+        
+        # Auto-start checkbox
+        self.autostart_check = QCheckBox("Start StealthShark when I log in")
+        self.autostart_check.setStyleSheet("font-size: 14px; padding: 8px;")
+        self.autostart_check.setChecked(True)
+        layout.addWidget(self.autostart_check)
+        
+        autostart_note = QLabel("    Runs silently in the menu bar — no window pops up")
+        autostart_note.setStyleSheet("color: #6a7080; font-size: 12px; margin-bottom: 16px;")
+        layout.addWidget(autostart_note)
+        
+        # Minimize to tray checkbox
+        self.tray_check = QCheckBox("Minimize to menu bar when I close the window")
+        self.tray_check.setStyleSheet("font-size: 14px; padding: 8px;")
+        self.tray_check.setChecked(True)
+        layout.addWidget(self.tray_check)
+        
+        tray_note = QLabel("    StealthShark keeps capturing in the background")
+        tray_note.setStyleSheet("color: #6a7080; font-size: 12px; margin-bottom: 16px;")
+        layout.addWidget(tray_note)
+        
+        # Auto-capture checkbox
+        self.autocapture_check = QCheckBox("Automatically start capturing when launched")
+        self.autocapture_check.setStyleSheet("font-size: 14px; padding: 8px;")
+        self.autocapture_check.setChecked(True)
+        layout.addWidget(self.autocapture_check)
+        
+        autocapture_note = QLabel("    Begin monitoring all interfaces immediately — no clicks needed")
+        autocapture_note.setStyleSheet("color: #6a7080; font-size: 12px;")
+        layout.addWidget(autocapture_note)
+        
+        layout.addStretch()
+        page.setLayout(layout)
+        return page
+    
+    def _finish_page(self):
+        page = QWizardPage()
+        page.setTitle("You're All Set!")
+        layout = QVBoxLayout()
+        
+        icon = QLabel("🎉")
+        icon.setFont(QFont("Arial", 48))
+        icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(icon)
+        
+        title = QLabel("StealthShark is Ready")
+        title.setFont(QFont("Arial", 18, QFont.Weight.Bold))
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setStyleSheet("color: #00e676; margin-bottom: 16px;")
+        layout.addWidget(title)
+        
+        desc = QLabel(
+            "Click Finish to start monitoring.\n\n"
+            "🦈  Look for the shark icon in your menu bar\n"
+            "📊  Click it anytime to see stats and captures\n"
+            "🗜️  All captures are compressed automatically\n"
+            "📦  Old sessions are archived and cleaned up\n\n"
+            "StealthShark runs silently — you don't need to do anything else."
+        )
+        desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        desc.setStyleSheet("color: #8b8fa8; font-size: 14px; line-height: 1.7;")
+        layout.addWidget(desc)
+        
+        layout.addStretch()
+        page.setLayout(layout)
+        return page
+    
+    def get_settings(self):
+        """Return the user's chosen settings"""
+        return {
+            'autostart': self.autostart_check.isChecked(),
+            'minimize_to_tray': self.tray_check.isChecked(),
+            'auto_capture': self.autocapture_check.isChecked(),
+        }
+
+
 class MultiInterfaceSharkGUI(QMainWindow):
     """Main Multi-Interface Shark GUI"""
     
@@ -495,12 +793,23 @@ class MultiInterfaceSharkGUI(QMainWindow):
         super().__init__()
         self.monitor_thread = None
         self.auto_save_timer = None
+        self.tray_icon = None
+        self.minimize_to_tray = True
+        self.auto_capture = True
         self.session_state_file = Path("./gui_logs/session_state.json")
+        self.prefs_file = Path("./gui_logs/stealthshark_prefs.json")
         self.setup_logging()
+        self._load_prefs()
+        self._run_onboarding_if_needed()
         self.setup_ui()
+        self._setup_system_tray()
         self.apply_dark_theme()
         self.setup_auto_save()
         self.setup_crash_protection()
+        
+        # Auto-start capture if enabled
+        if self.auto_capture:
+            QTimer.singleShot(500, self.start_monitoring)
         
     def setup_logging(self):
         """Setup verbose logging"""
@@ -521,6 +830,179 @@ class MultiInterfaceSharkGUI(QMainWindow):
         
         self.logger = logging.getLogger("MultiInterfaceGUI")
         self.logger.info("Multi-Interface Shark GUI logging initialized")
+    
+    def _load_prefs(self):
+        """Load user preferences from disk"""
+        try:
+            if self.prefs_file.exists():
+                with open(self.prefs_file, 'r') as f:
+                    prefs = json.load(f)
+                self.minimize_to_tray = prefs.get('minimize_to_tray', True)
+                self.auto_capture = prefs.get('auto_capture', True)
+                self.logger.info("Preferences loaded")
+        except Exception as e:
+            self.logger.warning(f"Could not load prefs: {e}")
+    
+    def _save_prefs(self, prefs):
+        """Save user preferences to disk"""
+        try:
+            self.prefs_file.parent.mkdir(exist_ok=True)
+            with open(self.prefs_file, 'w') as f:
+                json.dump(prefs, f, indent=2)
+            self.logger.info("Preferences saved")
+        except Exception as e:
+            self.logger.warning(f"Could not save prefs: {e}")
+    
+    def _run_onboarding_if_needed(self):
+        """Show the onboarding wizard on first run"""
+        if self.prefs_file.exists():
+            return  # Already onboarded
+        
+        self.logger.info("First run detected — launching onboarding wizard")
+        wizard = OnboardingWizard()
+        result = wizard.exec()
+        
+        if result == QWizard.DialogCode.Accepted:
+            settings = wizard.get_settings()
+            self.minimize_to_tray = settings['minimize_to_tray']
+            self.auto_capture = settings['auto_capture']
+            
+            # Save preferences
+            self._save_prefs(settings)
+            
+            # Setup auto-start on login if requested
+            if settings['autostart']:
+                self._install_login_item()
+            
+            self.logger.info(f"Onboarding complete: {settings}")
+        else:
+            # User cancelled — save defaults so wizard doesn't show again
+            self._save_prefs({
+                'minimize_to_tray': True,
+                'auto_capture': False,
+                'autostart': False,
+            })
+            self.auto_capture = False
+    
+    def _setup_system_tray(self):
+        """Setup the system tray / menu bar icon"""
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            self.logger.warning("System tray not available")
+            return
+        
+        self.tray_icon = QSystemTrayIcon(self)
+        
+        # Create a simple icon (blue circle as fallback)
+        pixmap = QPixmap(32, 32)
+        pixmap.fill(QColor(0, 212, 255))
+        self.tray_icon.setIcon(QIcon(pixmap))
+        self.tray_icon.setToolTip("StealthShark — Network Monitor")
+        
+        # Create tray menu
+        tray_menu = QMenu()
+        
+        show_action = QAction("🦈 Show StealthShark", self)
+        show_action.triggered.connect(self._show_window)
+        tray_menu.addAction(show_action)
+        
+        tray_menu.addSeparator()
+        
+        self.tray_status_action = QAction("⏸️ Not monitoring", self)
+        self.tray_status_action.setEnabled(False)
+        tray_menu.addAction(self.tray_status_action)
+        
+        tray_menu.addSeparator()
+        
+        start_action = QAction("▶️ Start Monitoring", self)
+        start_action.triggered.connect(self.start_monitoring)
+        tray_menu.addAction(start_action)
+        
+        stop_action = QAction("⏹️ Stop Monitoring", self)
+        stop_action.triggered.connect(self.stop_monitoring)
+        tray_menu.addAction(stop_action)
+        
+        tray_menu.addSeparator()
+        
+        quit_action = QAction("❌ Quit StealthShark", self)
+        quit_action.triggered.connect(self._quit_app)
+        tray_menu.addAction(quit_action)
+        
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self._tray_activated)
+        self.tray_icon.show()
+        
+        self.logger.info("System tray icon initialized")
+    
+    def _tray_activated(self, reason):
+        """Handle tray icon click"""
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            self._toggle_window()
+    
+    def _toggle_window(self):
+        """Toggle main window visibility"""
+        if self.isVisible():
+            self.hide()
+        else:
+            self._show_window()
+    
+    def _show_window(self):
+        """Show and raise the main window"""
+        self.show()
+        self.raise_()
+        self.activateWindow()
+    
+    def _quit_app(self):
+        """Actually quit the application (not just minimize)"""
+        self.minimize_to_tray = False  # Prevent closeEvent from hiding
+        self.close()
+        QApplication.quit()
+    
+    def _install_login_item(self):
+        """Install a macOS Launch Agent so StealthShark starts on login"""
+        try:
+            launch_agents_dir = Path.home() / "Library" / "LaunchAgents"
+            launch_agents_dir.mkdir(parents=True, exist_ok=True)
+            plist_path = launch_agents_dir / "com.aimf.stealthshark.plist"
+            
+            # Determine the executable path
+            app_path = Path("/Applications/StealthShark.app/Contents/MacOS/StealthShark")
+            if not app_path.exists():
+                # Fallback to source launch
+                app_path = None
+            
+            if app_path:
+                program_args = [str(app_path)]
+            else:
+                python_path = sys.executable
+                script_path = str(Path(__file__).resolve())
+                program_args = [python_path, script_path]
+            
+            plist_data = {
+                'Label': 'com.aimf.stealthshark',
+                'ProgramArguments': program_args,
+                'RunAtLoad': True,
+                'KeepAlive': False,
+                'ProcessType': 'Interactive',
+                'StandardOutPath': str(Path.home() / 'Library' / 'Logs' / 'stealthshark_stdout.log'),
+                'StandardErrorPath': str(Path.home() / 'Library' / 'Logs' / 'stealthshark_stderr.log'),
+            }
+            
+            with open(plist_path, 'wb') as f:
+                plistlib.dump(plist_data, f)
+            
+            self.logger.info(f"Login item installed: {plist_path}")
+        except Exception as e:
+            self.logger.warning(f"Could not install login item: {e}")
+    
+    def _remove_login_item(self):
+        """Remove the macOS Launch Agent"""
+        try:
+            plist_path = Path.home() / "Library" / "LaunchAgents" / "com.aimf.stealthshark.plist"
+            if plist_path.exists():
+                plist_path.unlink()
+                self.logger.info("Login item removed")
+        except Exception as e:
+            self.logger.warning(f"Could not remove login item: {e}")
         
     def setup_auto_save(self):
         """Setup automatic session state saving"""
@@ -762,6 +1244,11 @@ class MultiInterfaceSharkGUI(QMainWindow):
             self.stop_btn.setEnabled(True)
             self.statusBar().showMessage("🟢 Monitoring ALL Network Interfaces")
             
+            # Update tray icon status
+            if self.tray_icon and hasattr(self, 'tray_status_action'):
+                self.tray_status_action.setText("🟢 Monitoring active")
+                self.tray_icon.setToolTip("StealthShark — Monitoring active")
+            
             self.log_message("✅ Multi-interface monitoring started successfully!")
             
         except Exception as e:
@@ -782,6 +1269,12 @@ class MultiInterfaceSharkGUI(QMainWindow):
         self.start_btn.setEnabled(True)
         self.stop_btn.setEnabled(False)
         self.statusBar().showMessage("⏸️ Monitoring Stopped")
+        
+        # Update tray icon status
+        if self.tray_icon and hasattr(self, 'tray_status_action'):
+            self.tray_status_action.setText("⏸️ Not monitoring")
+            self.tray_icon.setToolTip("StealthShark — Stopped")
+        
         self.log_message("🛑 Multi-interface monitoring stopped.")
         
     def log_message(self, message):
@@ -938,38 +1431,42 @@ class MultiInterfaceSharkGUI(QMainWindow):
         """)
 
     def closeEvent(self, event):
-        """Handle window close event with auto-save"""
-        self.logger.info("Application closing - saving session state")
-        
-        # Save current state
+        """Handle window close — minimize to tray if monitoring, otherwise quit"""
+        self.logger.info("Close event triggered")
         self.save_session_state()
         
+        # If tray is available and minimize_to_tray is on, hide instead of quit
+        if self.minimize_to_tray and self.tray_icon and self.tray_icon.isVisible():
+            is_monitoring = self.monitor_thread and self.monitor_thread.isRunning()
+            if is_monitoring:
+                self.tray_icon.showMessage(
+                    "StealthShark",
+                    "Still monitoring in the background. Click the menu bar icon to reopen.",
+                    QSystemTrayIcon.MessageIcon.Information,
+                    3000
+                )
+            self.hide()
+            event.ignore()
+            self.logger.info("Minimized to system tray")
+            return
+        
+        # Actually quitting — stop monitoring first
         if self.monitor_thread and self.monitor_thread.isRunning():
-            reply = QMessageBox.question(
-                self, "Confirm Exit",
-                "Monitoring is active. Stop monitoring and exit?\n\n"
-                "Note: Session state has been saved and can be restored on next startup.",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-            )
-            
-            if reply == QMessageBox.StandardButton.Yes:
-                self.stop_monitoring()
-                # Wait a moment for cleanup
-                if self.monitor_thread:
-                    self.monitor_thread.wait(3000)  # Wait up to 3 seconds
-                event.accept()
-            else:
-                event.ignore()
-                return
+            self.stop_monitoring()
+            if self.monitor_thread:
+                self.monitor_thread.wait(3000)
         
         # Stop auto-save timer
         if self.auto_save_timer:
             self.auto_save_timer.stop()
+        
+        # Hide tray icon
+        if self.tray_icon:
+            self.tray_icon.hide()
             
-        # Clear session state file on clean exit
+        # Mark clean shutdown
         try:
             if self.session_state_file.exists():
-                # Mark as clean shutdown
                 with open(self.session_state_file, 'r') as f:
                     state = json.load(f)
                 state['was_monitoring'] = False
