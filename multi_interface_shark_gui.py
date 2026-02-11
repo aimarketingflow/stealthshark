@@ -25,7 +25,8 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout
                              QListWidgetItem, QSplitter, QGridLayout, QTreeWidget, 
                              QTreeWidgetItem, QLineEdit, QFileDialog, QMessageBox, 
                              QStatusBar, QScrollArea, QFrame, QSystemTrayIcon,
-                             QMenu, QWizard, QWizardPage, QRadioButton)
+                             QMenu, QWizard, QWizardPage, QRadioButton,
+                             QTextBrowser)
 from PyQt6.QtCore import QThread, pyqtSignal, QTimer, Qt, QSize
 from PyQt6.QtGui import QFont, QBrush, QColor, QPalette, QPixmap, QIcon, QAction
 import plistlib
@@ -496,12 +497,13 @@ class OnboardingWizard(QWizard):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Welcome to StealthShark")
-        self.setFixedSize(620, 520)
+        self.setFixedSize(660, 580)
         self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
         
         self.addPage(self._welcome_page())
         self.addPage(self._permissions_page())
         self.addPage(self._settings_page())
+        self.addPage(self._terms_page())
         self.addPage(self._finish_page())
         
         self.setStyleSheet("""
@@ -743,6 +745,104 @@ class OnboardingWizard(QWizard):
         
         layout.addStretch()
         page.setLayout(layout)
+        return page
+    
+    def _terms_page(self):
+        page = QWizardPage()
+        page.setTitle("Terms of Use & Legal")
+        layout = QVBoxLayout()
+        
+        intro = QLabel("Please review and accept the terms before continuing:")
+        intro.setStyleSheet("color: #8b8fa8; font-size: 13px; margin-bottom: 8px;")
+        layout.addWidget(intro)
+        
+        terms_text = QTextBrowser()
+        terms_text.setOpenExternalLinks(True)
+        terms_text.setStyleSheet(
+            "background-color: #12141c; color: #c0c4d8; border: 1px solid #2a2d3a; "
+            "border-radius: 6px; padding: 10px; font-size: 12px;")
+        terms_text.setHtml("""
+        <h3 style="color:#00d4ff;">StealthShark — Terms of Use</h3>
+        <p style="color:#8b8fa8;"><b>Effective Date:</b> February 2026 &nbsp;|&nbsp; <b>Version:</b> 2.1.0</p>
+        <hr style="border-color:#2a2d3a;">
+
+        <h4 style="color:#e2e4f0;">1. Open Source License</h4>
+        <p>StealthShark is open-source software distributed under the
+        <b>GNU General Public License v3.0 (GPL-3.0)</b>. You are free to use,
+        study, modify, and distribute this software under the terms of the GPL-3.0.
+        Any derivative works must also be distributed under the same license.
+        The full license text is available at
+        <a href="https://github.com/aimarketingflow/stealthshark/blob/main/LICENSE" style="color:#00d4ff;">our GitHub repository</a>.</p>
+
+        <h4 style="color:#e2e4f0;">2. Disclaimer of Warranty</h4>
+        <p>THE SOFTWARE IS PROVIDED <b>"AS IS"</b>, WITHOUT WARRANTY OF ANY KIND,
+        EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+        MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+        The authors and copyright holders make no guarantees regarding the
+        accuracy, reliability, completeness, or suitability of this software
+        for any particular purpose.</p>
+
+        <h4 style="color:#e2e4f0;">3. Limitation of Liability</h4>
+        <p>IN NO EVENT SHALL THE AUTHORS, COPYRIGHT HOLDERS, OR CONTRIBUTORS
+        BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN
+        ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM, OUT OF, OR IN
+        CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+        SOFTWARE. This includes but is not limited to:</p>
+        <ul>
+            <li>Data loss or corruption</li>
+            <li>Security breaches or unauthorized access</li>
+            <li>System performance degradation</li>
+            <li>Network disruption or interference</li>
+            <li>Any indirect, incidental, special, or consequential damages</li>
+        </ul>
+
+        <h4 style="color:#e2e4f0;">4. Lawful Use Only</h4>
+        <p>You agree to use StealthShark <b>only on networks and devices you own
+        or have explicit authorization to monitor</b>. Unauthorized interception
+        of network traffic may violate federal and state laws, including but not
+        limited to the <b>Computer Fraud and Abuse Act (CFAA)</b>, the
+        <b>Wiretap Act (18 U.S.C. &sect; 2511)</b>, and equivalent laws in your
+        jurisdiction. <b>You are solely responsible</b> for ensuring your use of
+        this software complies with all applicable laws and regulations.</p>
+
+        <h4 style="color:#e2e4f0;">5. No Professional Advice</h4>
+        <p>StealthShark is a network monitoring tool and does not constitute
+        professional security, legal, or compliance advice. Consult qualified
+        professionals for security audits, legal compliance, or regulatory
+        requirements.</p>
+
+        <h4 style="color:#e2e4f0;">6. Data Responsibility</h4>
+        <p>All captured network data is stored <b>locally on your device</b>.
+        StealthShark does not transmit any data to external servers. You are
+        solely responsible for the security, storage, handling, and lawful
+        use of any captured data. You should ensure captured data is stored
+        securely and disposed of in accordance with applicable data protection
+        laws (e.g., GDPR, CCPA).</p>
+
+        <h4 style="color:#e2e4f0;">7. Indemnification</h4>
+        <p>You agree to indemnify, defend, and hold harmless the authors,
+        contributors, and AI Marketing Flow from and against any claims,
+        liabilities, damages, losses, and expenses (including reasonable
+        attorney fees) arising out of or in any way connected with your
+        use or misuse of this software.</p>
+
+        <h4 style="color:#e2e4f0;">8. Modifications</h4>
+        <p>These terms may be updated with new versions of the software.
+        Continued use after updates constitutes acceptance of revised terms.</p>
+
+        <p style="color:#6a7080; margin-top: 16px;"><em>&copy; 2026 AI Marketing Flow.
+        All rights reserved.</em></p>
+        """)
+        layout.addWidget(terms_text)
+        
+        # Accept checkbox — required to proceed
+        self.accept_check = QCheckBox("I have read and agree to the Terms of Use")
+        self.accept_check.setStyleSheet("font-size: 13px; padding: 8px; color: #e2e4f0;")
+        self.accept_check.toggled.connect(lambda checked: page.completeChanged.emit())
+        layout.addWidget(self.accept_check)
+        
+        page.setLayout(layout)
+        page.isComplete = lambda: self.accept_check.isChecked()
         return page
     
     def _finish_page(self):
