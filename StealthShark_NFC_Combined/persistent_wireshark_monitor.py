@@ -13,6 +13,8 @@ import json
 import logging
 import signal
 import sys
+import tarfile
+import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 import psutil
@@ -32,7 +34,7 @@ class PersistentWiresharkMonitor:
             alert_callback: Function to call when new interface activity detected
         """
         self.capture_dir = Path(capture_dir)
-        self.capture_duration = max(60, min(18000, capture_duration))  # 1min-5hrs
+        self.capture_duration = max(30, min(18000, capture_duration))  # 30s-5hrs
         self.check_interval = check_interval
         self.alert_callback = alert_callback
         
@@ -208,11 +210,11 @@ class PersistentWiresharkMonitor:
         
         self.logger.info(f"Starting capture session in: {output_dir}")
         
-        # Create capture file with organized naming using session timestamp
+        # Create capture file with organized naming using session timestamp (compressed)
         if interface_group == 'loopback':
-            capture_filename = f"{self.session_timestamp}-ch-loopback.pcap"
+            capture_filename = f"{self.session_timestamp}-ch-loopback.pcap.gz"
         else:
-            capture_filename = f"{self.session_timestamp}-ch-{interface}.pcap"
+            capture_filename = f"{self.session_timestamp}-ch-{interface}.pcap.gz"
         
         capture_file = output_dir / capture_filename
         capture_file_abs = capture_file.resolve()
@@ -222,14 +224,23 @@ class PersistentWiresharkMonitor:
         self.logger.info(f"🏷️  GROUP: {interface_group} | INTERFACE: {interface}")
         
         try:
-            # Use tcpdump with direct interface specification
-            cmd = ['tcpdump', '-i', interface, '-w', str(capture_file_abs), '-s', '0']
+            # Pipe tcpdump stdout through gzip for real-time compression
+            cmd = ['tcpdump', '-i', interface, '-w', '-', '-s', '0']
             
-            process = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
-                                     stderr=subprocess.PIPE)
+            gzip_outfile = open(str(capture_file_abs), 'wb')
+            tcpdump_process = subprocess.Popen(cmd, stdout=subprocess.PIPE, 
+                                               stderr=subprocess.PIPE)
+            gzip_process = subprocess.Popen(['gzip', '-1'],
+                                            stdin=tcpdump_process.stdout,
+                                            stdout=gzip_outfile,
+                                            stderr=subprocess.PIPE)
+            # Allow tcpdump to receive SIGPIPE if gzip exits
+            tcpdump_process.stdout.close()
             
             self.active_captures[interface] = {
-                'process': process,
+                'process': tcpdump_process,
+                'gzip_process': gzip_process,
+                'gzip_outfile': gzip_outfile,
                 'start_time': datetime.now(),
                 'capture_file': capture_file,
                 'capture_filename': capture_filename,
@@ -352,22 +363,87 @@ class PersistentWiresharkMonitor:
             self.logger.error(f"Failed to check for new interfaces: {e}")
             
     def cleanup_old_captures(self):
-        """Clean up old capture files to prevent disk space issues"""
+        """Clean up old capture files and archives to prevent disk space issues"""
         try:
-            completed_dir = self.capture_dir / "completed"
-            if not completed_dir.exists():
-                return
-                
-            # Remove files older than 7 days
+            # Remove archives older than 7 days
             cutoff_time = datetime.now() - timedelta(days=7)
             
-            for pcap_file in completed_dir.glob("*.pcap*"):
-                if pcap_file.stat().st_mtime < cutoff_time.timestamp():
-                    pcap_file.unlink()
-                    self.logger.info(f"Cleaned up old capture: {pcap_file.name}")
+            for archive_file in self.capture_dir.glob("session_*.tar.gz"):
+                if archive_file.stat().st_mtime < cutoff_time.timestamp():
+                    archive_file.unlink()
+                    self.logger.info(f"Cleaned up old archive: {archive_file.name}")
+            
+            # Also clean completed dir if it exists
+            completed_dir = self.capture_dir / "completed"
+            if completed_dir.exists():
+                for pcap_file in completed_dir.glob("*.pcap*"):
+                    if pcap_file.stat().st_mtime < cutoff_time.timestamp():
+                        pcap_file.unlink()
+                        self.logger.info(f"Cleaned up old capture: {pcap_file.name}")
                     
         except Exception as e:
             self.logger.error(f"Failed to cleanup old captures: {e}")
+    
+    def archive_old_sessions(self):
+        """Compress older session folders into .tar.gz archives to save disk space"""
+        try:
+            for session_dir in sorted(self.capture_dir.glob("session_*")):
+                # Skip non-directories (already-archived .tar.gz files)
+                if not session_dir.is_dir():
+                    continue
+                    
+                # Never archive the current active session
+                if session_dir.name == self.session_dir.name:
+                    continue
+                
+                # Only archive sessions older than 1 hour
+                try:
+                    dir_mtime = datetime.fromtimestamp(session_dir.stat().st_mtime)
+                    if datetime.now() - dir_mtime < timedelta(hours=1):
+                        continue
+                except Exception:
+                    continue
+                
+                archive_path = self.capture_dir / f"{session_dir.name}.tar.gz"
+                
+                # Skip if already archived
+                if archive_path.exists():
+                    continue
+                
+                # Create compressed tar archive
+                self.logger.info(f"📦 Archiving session: {session_dir.name} -> {archive_path.name}")
+                try:
+                    with tarfile.open(str(archive_path), 'w:gz') as tar:
+                        tar.add(str(session_dir), arcname=session_dir.name)
+                    
+                    # Verify archive was created and has content
+                    if archive_path.exists() and archive_path.stat().st_size > 0:
+                        # Calculate space saved
+                        original_size = sum(f.stat().st_size for f in session_dir.rglob('*') if f.is_file())
+                        archive_size = archive_path.stat().st_size
+                        saved_pct = (1 - archive_size / max(original_size, 1)) * 100
+                        
+                        # Remove original directory
+                        shutil.rmtree(str(session_dir))
+                        self.logger.info(f"✅ Archived {session_dir.name}: "
+                                       f"{original_size} -> {archive_size} bytes "
+                                       f"({saved_pct:.1f}% saved)")
+                    else:
+                        self.logger.warning(f"⚠️ Archive creation failed for {session_dir.name}, keeping original")
+                        if archive_path.exists():
+                            archive_path.unlink()
+                            
+                except Exception as e:
+                    self.logger.error(f"Failed to archive {session_dir.name}: {e}")
+                    # Clean up partial archive
+                    if archive_path.exists():
+                        try:
+                            archive_path.unlink()
+                        except Exception:
+                            pass
+                            
+        except Exception as e:
+            self.logger.error(f"Failed to archive old sessions: {e}")
             
     def generate_status_report(self):
         """Generate comprehensive status report"""
@@ -427,8 +503,9 @@ class PersistentWiresharkMonitor:
                 # Check for active interfaces
                 self.monitor_interfaces()
                 
-                # Cleanup and reporting
+                # Cleanup, archiving, and reporting
                 if iteration % 100 == 0:
+                    self.archive_old_sessions()
                     self.cleanup_old_captures()
                     
                 # Generate status report every 50 iterations
@@ -447,6 +524,56 @@ class PersistentWiresharkMonitor:
         finally:
             self.cleanup()
         
+    def stop_capture(self, interface):
+        """Stop an active capture on the specified interface and finalize the pcap file"""
+        capture_info = self.active_captures.get(interface)
+        if not capture_info:
+            self.logger.warning(f"No active capture to stop on {interface}")
+            return
+        
+        process = capture_info['process']
+        capture_file = capture_info['capture_file']
+        gzip_proc = capture_info.get('gzip_process')
+        gzip_outfile = capture_info.get('gzip_outfile')
+        
+        try:
+            if process.poll() is None:  # Still running
+                self.logger.info(f"Stopping capture on {interface}...")
+                process.terminate()
+                try:
+                    process.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    self.logger.warning(f"Force killing capture on {interface}")
+                    process.kill()
+                    process.wait(timeout=5)
+            
+            # Wait for gzip to finish flushing
+            if gzip_proc:
+                try:
+                    gzip_proc.wait(timeout=10)
+                except subprocess.TimeoutExpired:
+                    gzip_proc.kill()
+            if gzip_outfile:
+                try:
+                    gzip_outfile.close()
+                except Exception:
+                    pass
+            
+            # Log final file status
+            if capture_file.exists():
+                file_size = capture_file.stat().st_size
+                if file_size > 0:
+                    self.logger.info(f"📊 Saved compressed PCAP ({file_size} bytes): {capture_file.name}")
+                else:
+                    self.logger.warning(f"⚠️ PCAP file is empty: {capture_file.name}")
+            else:
+                self.logger.error(f"❌ PCAP file was NOT saved: {capture_file.name}")
+                
+        except Exception as e:
+            self.logger.error(f"Error stopping capture on {interface}: {e}")
+        finally:
+            del self.active_captures[interface]
+    
     def cleanup(self):
         """Clean up resources and terminate processes"""
         self.logger.info("Cleaning up resources...")
@@ -513,16 +640,9 @@ class PersistentWiresharkMonitor:
         self.logger.info("Shutting down persistent Wireshark monitor...")
         self.running = False
         
-        # Terminate all active captures
-        for interface, capture_info in self.active_captures.items():
-            try:
-                process = capture_info['process']
-                if process.poll() is None:  # Still running
-                    self.logger.info(f"Terminating capture on {interface}")
-                    process.terminate()
-                    process.wait(timeout=10)
-            except Exception as e:
-                self.logger.error(f"Error terminating capture on {interface}: {e}")
+        # Terminate all active captures using stop_capture for proper finalization
+        for interface in list(self.active_captures.keys()):
+            self.stop_capture(interface)
                 
         # Generate final report
         final_report = self.generate_status_report()

@@ -1,7 +1,0 @@
-#!/bin/bash
-# StealthShark Network Monitor GUI Launcher
-# Updated: 2025-09-02_13-09 - Fixed virtual environment and enhanced GUI
-# Created: 2025-08-31
-
-cd "$(dirname "$0")"
-python3 enhanced_wireshark_monitor_gui.py

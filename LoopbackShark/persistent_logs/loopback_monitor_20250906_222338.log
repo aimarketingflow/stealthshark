@@ -1,9 +1,0 @@
-2025-09-06 22:23:38,490 - LoopbackMonitor - INFO - LoopbackShark monitor logging initialized
-2025-09-06 22:23:38,533 - LoopbackMonitor - INFO - LoopbackMonitor initialized: session=20250906_222338, duration=10s
-2025-09-06 22:23:38,533 - LoopbackMonitor - INFO - 🚀 Starting loopback monitoring session 20250906_222338
-2025-09-06 22:23:38,536 - LoopbackMonitor - INFO - Starting tshark capture: tshark -i lo0 -f host 127.0.0.1 or host ::1 -w test_capture/loopback_session_20250906_222338/loopback_capture_20250906_222338.pcap -b duration:10 -q
-2025-09-06 22:23:48,572 - LoopbackMonitor - INFO - Monitor duration completed, stopping...
-2025-09-06 22:23:48,572 - LoopbackMonitor - INFO - 🛑 Stopping loopback monitor...
-2025-09-06 22:23:48,573 - LoopbackAnalyzer - INFO - Generated trend analysis: 0 packets, 0 connections
-2025-09-06 22:23:48,574 - LoopbackMonitor - INFO - Final reports saved: analysis_results/loopback_final_report_20250906_222338.json, analysis_results/loopback_summary_20250906_222338.md
-2025-09-06 22:23:48,574 - LoopbackMonitor - INFO - ✅ Loopback monitor stopped successfully

@@ -7,11 +7,13 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+*.egg
 
 # Virtual environments
 venv/
 venv_*/
 *_venv/
+wireshark_monitor_venv/
 ENV/
 env/
 
@@ -26,25 +28,55 @@ env/
 .DS_Store
 .AppleDouble
 .LSOverride
+Icon?
+._*
 
-# StealthShark specific
-logs/
-*.log
+# ──────────────────────────────────────────────
+# StealthShark output — may contain PII
+# (network traffic, IPs, hostnames, packet data)
+# ──────────────────────────────────────────────
+
+# Packet captures (raw and compressed)
 pcap_captures/
 *.pcap
+*.pcap.gz
 *.pcapng
+
+# Logs (contain interface names, IPs, packet counts)
+logs/
 gui_logs/
 persistent_logs/
+*.log
+
+# Analysis results (contain network patterns, IPs, ports)
 analysis_results/
+**/analysis_results/
+
+# Session & settings (contain directory paths, user config)
+session_state.json
+**/session_state.json
+*_settings.json
+*settings*.json
+*_status_*.json
+
+# Backups (may contain any of the above)
 backups/
+*.backup
 *.backup.*
 
-# Sensitive data
+# NFC data
+nfc_tags.json
+nfc_tags.json.backup
+
+# Archives (compressed session captures)
+*.tar.gz
+
+# Chat logs / conversation history
 *chatlog*
 *Chatlog*
 _Chatlogs/
-nfc_tags.json.backup
+StealthShark_chatlogs/
 
-# Session data
-session_state.json
-*_status_*.json
+# PyInstaller / app bundles
+*.spec
+StealthSharkAppLauncher*.app/

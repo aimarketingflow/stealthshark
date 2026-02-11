@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StealthShark - AI Marketing Flow | Silent Network Capture & Monitoring</title>
+    <meta name="description" content="Always-on network packet capture that runs silently in the background. Real-time gzip compression, multi-interface monitoring, auto-archiving. Zero performance impact.">
+    <style>
+        :root {
+            --bg-body: #0b0d14;
+            --bg-section: #10131c;
+            --bg-card: #161a28;
+            --bg-card-hover: #1c2133;
+            --accent: #00d4ff;
+            --accent-glow: rgba(0,212,255,0.15);
+            --accent2: #00e676;
+            --accent3: #b388ff;
+            --accent4: #ffab40;
+            --red: #ff5252;
+            --text: #e2e4f0;
+            --text-dim: #8b8fa8;
+            --border: #222740;
+            --radius: 16px;
+            --radius-sm: 10px;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-body);
+            color: var(--text);
+            line-height: 1.65;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* ── NAV ── */
+        .nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: rgba(11,13,20,0.85);
+            backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border);
+            padding: 0 32px;
+        }
+        .nav-inner {
+            max-width: 1140px;
+            margin: 0 auto;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            height: 60px;
+        }
+        .nav-brand {
+            font-weight: 800;
+            font-size: 18px;
+            color: var(--text);
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .nav-brand span { color: var(--accent); }
+        .nav-links { display: flex; gap: 28px; list-style: none; }
+        .nav-links a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 14px;
+            font-weight: 500;
+            transition: color .2s;
+        }
+        .nav-links a:hover { color: var(--accent); }
+
+        /* ── LAYOUT ── */
+        .wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
+        section { padding: 80px 0; }
+
+        /* ── HERO ── */
+        .hero {
+            text-align: center;
+            padding: 100px 0 80px;
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -120px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(0,212,255,0.08) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .hero-icon { font-size: 72px; margin-bottom: 16px; position: relative; }
+        .hero h1 {
+            font-size: clamp(32px, 5vw, 52px);
+            font-weight: 800;
+            line-height: 1.15;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #fff 30%, var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .hero .tagline {
+            font-size: 20px;
+            color: var(--accent);
+            font-weight: 600;
+            margin-bottom: 20px;
+        }
+        .hero .desc {
+            max-width: 640px;
+            margin: 0 auto 36px;
+            color: var(--text-dim);
+            font-size: 16px;
+            line-height: 1.7;
+        }
+        .hero-btns { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+        /* ── BUTTONS ── */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: all .2s;
+            cursor: pointer;
+            border: none;
+        }
+        .btn-primary {
+            background: var(--accent);
+            color: #0b0d14;
+        }
+        .btn-primary:hover { background: #33dfff; box-shadow: 0 0 24px rgba(0,212,255,0.35); }
+        .btn-outline {
+            background: transparent;
+            color: var(--text);
+            border: 1.5px solid var(--border);
+        }
+        .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+        .btn-sm { padding: 10px 20px; font-size: 13px; }
+        .btn-green { background: var(--accent2); color: #0b0d14; }
+        .btn-green:hover { background: #33ff8c; box-shadow: 0 0 24px rgba(0,230,118,0.3); }
+
+        /* ── SECTION HEADERS ── */
+        .section-header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+        .section-header h2 {
+            font-size: clamp(24px, 3.5vw, 36px);
+            font-weight: 800;
+            margin-bottom: 12px;
+        }
+        .section-header p {
+            color: var(--text-dim);
+            font-size: 16px;
+            max-width: 560px;
+            margin: 0 auto;
+        }
+
+        /* ── FEATURES GRID (Why Different) ── */
+        .features-section { background: var(--bg-section); }
+        .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 20px;
+        }
+        .feature-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 32px 28px;
+            transition: border-color .25s, transform .25s;
+        }
+        .feature-card:hover { border-color: var(--accent); transform: translateY(-4px); }
+        .feature-card .f-icon { font-size: 36px; margin-bottom: 16px; }
+        .feature-card h3 { font-size: 18px; font-weight: 700; margin-bottom: 10px; }
+        .feature-card p { color: var(--text-dim); font-size: 14px; line-height: 1.65; }
+
+        /* ── STATS BANNER ── */
+        .stats-banner {
+            background: linear-gradient(135deg, rgba(0,212,255,0.06), rgba(179,136,255,0.06));
+            border-top: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            padding: 48px 0;
+        }
+        .stats-row {
+            display: flex;
+            justify-content: center;
+            gap: 48px;
+            flex-wrap: wrap;
+        }
+        .stat-item { text-align: center; min-width: 140px; }
+        .stat-item .s-num {
+            font-size: 42px;
+            font-weight: 900;
+            line-height: 1.1;
+        }
+        .stat-item .s-num.cyan { color: var(--accent); }
+        .stat-item .s-num.green { color: var(--accent2); }
+        .stat-item .s-num.purple { color: var(--accent3); }
+        .stat-item .s-num.orange { color: var(--accent4); }
+        .stat-item .s-label {
+            font-size: 12px;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            margin-top: 6px;
+        }
+
+        /* ── COMPARISON TABLE ── */
+        .comparison-section { background: var(--bg-section); }
+        .comp-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            border-radius: var(--radius);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            font-size: 14px;
+        }
+        .comp-table thead th {
+            background: var(--bg-card);
+            padding: 16px 20px;
+            text-align: left;
+            font-weight: 700;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: .8px;
+            color: var(--text-dim);
+            border-bottom: 1px solid var(--border);
+        }
+        .comp-table thead th:nth-child(2) { color: var(--accent); }
+        .comp-table thead th:nth-child(3) { color: var(--accent4); }
+        .comp-table td {
+            padding: 15px 20px;
+            border-bottom: 1px solid var(--border);
+            vertical-align: top;
+        }
+        .comp-table tr:last-child td { border-bottom: none; }
+        .comp-table tbody tr { background: var(--bg-body); transition: background .15s; }
+        .comp-table tbody tr:hover { background: var(--bg-card); }
+        .comp-table .metric { font-weight: 700; white-space: nowrap; }
+        .win { color: var(--accent2); font-weight: 600; }
+        .lose { color: var(--red); opacity: .85; }
+
+        /* ── TIERS ── */
+        .tiers-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 24px;
+        }
+        .tier-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 36px 32px;
+            display: flex;
+            flex-direction: column;
+            transition: border-color .25s;
+        }
+        .tier-card:hover { border-color: var(--accent); }
+        .tier-card.featured { border-color: var(--accent); box-shadow: 0 0 40px rgba(0,212,255,0.08); }
+        .tier-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+            width: fit-content;
+        }
+        .tier-badge.free { background: rgba(0,230,118,0.15); color: var(--accent2); }
+        .tier-badge.pro { background: rgba(0,212,255,0.15); color: var(--accent); }
+        .tier-badge.coming { background: rgba(179,136,255,0.15); color: var(--accent3); }
+        .tier-card h3 { font-size: 22px; font-weight: 800; margin-bottom: 8px; }
+        .tier-card .tier-desc { color: var(--text-dim); font-size: 14px; margin-bottom: 20px; }
+        .tier-card ul { list-style: none; margin-bottom: 28px; flex: 1; }
+        .tier-card ul li {
+            padding: 7px 0;
+            font-size: 14px;
+            color: var(--text-dim);
+            padding-left: 22px;
+            position: relative;
+        }
+        .tier-card ul li::before {
+            content: '✓';
+            position: absolute;
+            left: 0;
+            color: var(--accent2);
+            font-weight: 700;
+        }
+
+        /* ── WORKFLOW ── */
+        .workflow-section { background: var(--bg-section); }
+        .workflow-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+        .wf-step {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px 24px;
+            text-align: center;
+            position: relative;
+        }
+        .wf-step .wf-num {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--accent), var(--accent3));
+            color: #fff;
+            font-weight: 900;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 14px;
+        }
+        .wf-step .wf-icon { font-size: 36px; margin-bottom: 10px; }
+        .wf-step h4 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+        .wf-step p { font-size: 13px; color: var(--text-dim); line-height: 1.6; }
+
+        /* ── SUPPORT ── */
+        .support-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+        .support-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 28px 24px;
+            text-align: center;
+            transition: border-color .25s;
+        }
+        .support-card:hover { border-color: var(--accent); }
+        .support-card .sc-icon { font-size: 32px; margin-bottom: 12px; }
+        .support-card h4 { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
+        .support-card p { font-size: 13px; color: var(--text-dim); margin-bottom: 14px; }
+
+        /* ── FAQ ── */
+        .faq-section { background: var(--bg-section); }
+        .faq-list { max-width: 720px; margin: 0 auto; }
+        .faq-item {
+            border-bottom: 1px solid var(--border);
+        }
+        .faq-q {
+            width: 100%;
+            background: none;
+            border: none;
+            color: var(--text);
+            font-size: 15px;
+            font-weight: 600;
+            text-align: left;
+            padding: 20px 0;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-family: inherit;
+        }
+        .faq-q:hover { color: var(--accent); }
+        .faq-q .arrow {
+            font-size: 18px;
+            transition: transform .25s;
+            color: var(--text-dim);
+            flex-shrink: 0;
+            margin-left: 16px;
+        }
+        .faq-q.open .arrow { transform: rotate(180deg); color: var(--accent); }
+        .faq-a {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height .3s ease, padding .3s ease;
+        }
+        .faq-a.open { max-height: 300px; padding-bottom: 20px; }
+        .faq-a p { color: var(--text-dim); font-size: 14px; line-height: 1.7; }
+
+        /* ── FOOTER ── */
+        .footer {
+            border-top: 1px solid var(--border);
+            padding: 48px 0 32px;
+        }
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 36px;
+        }
+        .footer-brand p { color: var(--text-dim); font-size: 13px; margin-top: 10px; line-height: 1.6; }
+        .footer h5 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1.2px;
+            color: var(--text-dim);
+            margin-bottom: 14px;
+        }
+        .footer ul { list-style: none; }
+        .footer ul li { margin-bottom: 8px; }
+        .footer ul a {
+            color: var(--text-dim);
+            text-decoration: none;
+            font-size: 13px;
+            transition: color .2s;
+        }
+        .footer ul a:hover { color: var(--accent); }
+        .footer-bottom {
+            border-top: 1px solid var(--border);
+            padding-top: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+        .footer-bottom p { color: var(--text-dim); font-size: 12px; }
+        .footer-socials { display: flex; gap: 16px; }
+        .footer-socials a { color: var(--text-dim); text-decoration: none; font-size: 13px; transition: color .2s; }
+        .footer-socials a:hover { color: var(--accent); }
+
+        @media (max-width: 768px) {
+            .nav-links { display: none; }
+            .footer-grid { grid-template-columns: 1fr 1fr; }
+            .stats-row { gap: 24px; }
+            section { padding: 56px 0; }
+        }
+    </style>
+</head>
+<body>
+
+<!-- ── NAV ── -->
+<nav class="nav">
+    <div class="nav-inner">
+        <a href="https://aimarketingflow.com" class="nav-brand">AI Marketing Flow <span>|</span> StealthShark</a>
+        <ul class="nav-links">
+            <li><a href="https://aimarketingflow.com">Home</a></li>
+            <li><a href="https://aimarketingflow.com/cybersecurity-projects/">CyberSec Projects</a></li>
+            <li><a href="https://aimarketingflow.com/cybersecurity-projects/cyberdefense-guides/">Defense Guides</a></li>
+            <li><a href="https://aimarketingflow.com/contact/">Contact</a></li>
+        </ul>
+    </div>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero">
+    <div class="wrap">
+        <div class="hero-icon">🦈</div>
+        <h1>StealthShark</h1>
+        <div class="tagline">Silent Network Capture You Actually Control</div>
+        <p class="desc">
+            Always-on packet capture that runs silently in the background across every network interface.
+            Real-time gzip compression, automatic session archiving, and near-zero resource usage.
+            No cloud, no subscriptions, no performance impact.
+        </p>
+        <div class="hero-btns">
+            <a href="https://github.com/aimarketingflow/stealthshark" class="btn btn-primary">Download Free (Open Source) &rarr;</a>
+            <a href="#setup" class="btn btn-outline">View Setup Guide</a>
+        </div>
+    </div>
+</section>
+
+<!-- ── WHY DIFFERENT ── -->
+<section class="features-section">
+    <div class="wrap">
+        <div class="section-header">
+            <h2>Why StealthShark is Different</h2>
+            <p>Purpose-built for always-on background capture with maximum efficiency and zero overhead</p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="f-icon">🗜️</div>
+                <h3>Real-Time Compression</h3>
+                <p>Captures pipe through gzip in real-time, reducing disk usage by ~84%. A 672 MB raw session becomes 107 MB compressed&mdash;automatically.</p>
+            </div>
+            <div class="feature-card">
+                <div class="f-icon">📡</div>
+                <h3>Multi-Interface Capture</h3>
+                <p>Monitors every network interface simultaneously&mdash;Ethernet, VPN, loopback, firewall, AirDrop&mdash;each with its own organized capture stream.</p>
+            </div>
+            <div class="feature-card">
+                <div class="f-icon">📦</div>
+                <h3>Auto-Archiving</h3>
+                <p>Older sessions are automatically compressed into .tar.gz archives. 7-day retention with automatic cleanup. Set it and forget it.</p>
+            </div>
+            <div class="feature-card">
+                <div class="f-icon">🧠</div>
+                <h3>Near-Zero Footprint</h3>
+                <p>~2 MB RAM per interface. 0% CPU. Runs for days without memory growth. Wireshark uses 2&ndash;8 GB for the same capture on a single interface.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── STATS BANNER ── -->
+<div class="stats-banner">
+    <div class="wrap">
+        <div class="stats-row">
+            <div class="stat-item">
+                <div class="s-num cyan">~2 MB</div>
+                <div class="s-label">RAM per Interface</div>
+            </div>
+            <div class="stat-item">
+                <div class="s-num green">~0%</div>
+                <div class="s-label">CPU Usage</div>
+            </div>
+            <div class="stat-item">
+                <div class="s-num purple">84%</div>
+                <div class="s-label">Compression Savings</div>
+            </div>
+            <div class="stat-item">
+                <div class="s-num orange">11+</div>
+                <div class="s-label">Simultaneous Captures</div>
+            </div>
+            <div class="stat-item">
+                <div class="s-num cyan">24/7</div>
+                <div class="s-label">Always-On Monitoring</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ── COMPARISON ── -->
+<section class="comparison-section">
+    <div class="wrap">
+        <div class="section-header">
+            <h2>StealthShark vs Wireshark</h2>
+            <p>Different tools for different jobs&mdash;here's how they compare for packet capture efficiency</p>
+        </div>
+        <table class="comp-table">
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>🦈 StealthShark</th>
+                    <th>🔬 Wireshark</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="metric">RAM per Capture</td>
+                    <td class="win">~2.2 MB per interface</td>
+                    <td class="lose">500 MB &ndash; 8 GB (grows with packets)</td>
+                </tr>
+                <tr>
+                    <td class="metric">CPU Usage</td>
+                    <td class="win">~0% (raw write, no dissection)</td>
+                    <td class="lose">5&ndash;30% (real-time protocol parsing)</td>
+                </tr>
+                <tr>
+                    <td class="metric">Disk Format</td>
+                    <td class="win">.pcap.gz (gzip compressed, real-time)</td>
+                    <td class="lose">.pcapng (uncompressed by default)</td>
+                </tr>
+                <tr>
+                    <td class="metric">Compression</td>
+                    <td class="win">~84% reduction (live gzip)</td>
+                    <td>None during capture</td>
+                </tr>
+                <tr>
+                    <td class="metric">Multi-Interface</td>
+                    <td class="win">Independent per-interface captures</td>
+                    <td class="lose">Single interface or merged &ldquo;all&rdquo;</td>
+                </tr>
+                <tr>
+                    <td class="metric">Background Mode</td>
+                    <td class="win">Headless daemon, always-on</td>
+                    <td class="lose">Requires open GUI window</td>
+                </tr>
+                <tr>
+                    <td class="metric">Max Duration</td>
+                    <td class="win">Hours/days (disk-limited only)</td>
+                    <td class="lose">Limited by available RAM</td>
+                </tr>
+                <tr>
+                    <td class="metric">Packet Analysis</td>
+                    <td class="lose">None (capture only)</td>
+                    <td class="win">3000+ protocol dissectors</td>
+                </tr>
+                <tr>
+                    <td class="metric">Live Filtering</td>
+                    <td class="lose">Capture-only (no display filters)</td>
+                    <td class="win">Full BPF + display filter engine</td>
+                </tr>
+                <tr>
+                    <td class="metric">Crash Recovery</td>
+                    <td class="win">Auto session restore every 30s</td>
+                    <td>Partial (pcap survives, UI state lost)</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+
+<!-- ── CHOOSE YOUR LEVEL ── -->
+<section>
+    <div class="wrap">
+        <div class="section-header">
+            <h2>Choose Your Setup</h2>
+            <p>Start with the GUI for easy monitoring&mdash;or run headless for always-on background capture</p>
+        </div>
+        <div class="tiers-grid">
+            <div class="tier-card featured">
+                <span class="tier-badge free">Open Source</span>
+                <h3>Multi-Interface GUI</h3>
+                <p class="tier-desc">Full-featured dark-themed monitoring dashboard with real-time stats, session recovery, and one-click capture.</p>
+                <ul>
+                    <li>Real-time gzip-compressed .pcap.gz captures</li>
+                    <li>Monitor all interfaces simultaneously</li>
+                    <li>Live packet rate and bandwidth stats</li>
+                    <li>Auto-archiving of old sessions to .tar.gz</li>
+                    <li>Crash recovery with 30-second state saves</li>
+                    <li>Organized session directories by interface group</li>
+                    <li>Dark-themed professional PyQt6 interface</li>
+                    <li>7-day automatic archive cleanup</li>
+                </ul>
+                <a href="https://github.com/aimarketingflow/stealthshark" class="btn btn-primary btn-sm">Download on GitHub &rarr;</a>
+            </div>
+            <div class="tier-card">
+                <span class="tier-badge pro">Headless</span>
+                <h3>Persistent Monitor Daemon</h3>
+                <p class="tier-desc">Command-line background service for servers, headless systems, and always-on deployments. No GUI required.</p>
+                <ul>
+                    <li>All GUI capture features (compressed, multi-interface)</li>
+                    <li>Runs as background daemon process</li>
+                    <li>Configurable duration (30s to 6 hours per session)</li>
+                    <li>Automatic interface discovery via tshark + psutil</li>
+                    <li>New interface detection and auto-capture</li>
+                    <li>macOS desktop alert notifications</li>
+                    <li>JSON status reports and comprehensive logging</li>
+                    <li>Signal-safe graceful shutdown</li>
+                </ul>
+                <a href="https://github.com/aimarketingflow/stealthshark" class="btn btn-outline btn-sm">View Documentation &rarr;</a>
+            </div>
+            <div class="tier-card">
+                <span class="tier-badge coming">Coming Soon</span>
+                <h3>NFC Combined Edition</h3>
+                <p class="tier-desc">StealthShark integrated with NFC authentication for physical-token-secured capture sessions.</p>
+                <ul>
+                    <li>All Persistent Monitor features</li>
+                    <li>NFC tag authentication to start/stop captures</li>
+                    <li>Physical security token for capture authorization</li>
+                    <li>Extended interface group classification</li>
+                    <li>Combined monitoring and NFC management GUI</li>
+                    <li>Ideal for high-security environments</li>
+                </ul>
+                <span class="btn btn-outline btn-sm" style="opacity:.5;cursor:default;">Coming 2026</span>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── WORKFLOW ── -->
+<section class="workflow-section">
+    <div class="wrap">
+        <div class="section-header">
+            <h2>Recommended Workflow</h2>
+            <p>Use StealthShark and Wireshark together for complete network security coverage</p>
+        </div>
+        <div class="workflow-grid">
+            <div class="wf-step">
+                <div class="wf-num">1</div>
+                <div class="wf-icon">🦈</div>
+                <h4>StealthShark Captures</h4>
+                <p>Runs 24/7 in the background, silently capturing compressed pcaps across all interfaces with near-zero resource usage.</p>
+            </div>
+            <div class="wf-step">
+                <div class="wf-num">2</div>
+                <div class="wf-icon">🚨</div>
+                <h4>Incident Detected</h4>
+                <p>Suspicious activity flagged by alerts, IDS, or manual observation. Identify the relevant time window and interface.</p>
+            </div>
+            <div class="wf-step">
+                <div class="wf-num">3</div>
+                <div class="wf-icon">🔬</div>
+                <h4>Wireshark Analyzes</h4>
+                <p>Open the .pcap.gz file directly in Wireshark. Apply filters, inspect protocols, trace the full attack chain.</p>
+            </div>
+            <div class="wf-step">
+                <div class="wf-num">4</div>
+                <div class="wf-icon">📋</div>
+                <h4>Report &amp; Respond</h4>
+                <p>Use Wireshark's export and statistics to build forensic evidence. StealthShark keeps capturing throughout.</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── SUPPORT ── -->
+<section id="setup">
+    <div class="wrap">
+        <div class="section-header">
+            <h2>Support</h2>
+            <p>We're here to help</p>
+        </div>
+        <div class="support-grid">
+            <div class="support-card">
+                <div class="sc-icon">📖</div>
+                <h4>Setup Guide</h4>
+                <p>Step-by-step instructions with screenshots</p>
+                <a href="https://aimarketingflow.com/stealthshark-setup-guide/" class="btn btn-outline btn-sm">View Guide &rarr;</a>
+            </div>
+            <div class="support-card">
+                <div class="sc-icon">🐛</div>
+                <h4>Report a Bug</h4>
+                <p>Found an issue? Let us know on GitHub</p>
+                <a href="https://github.com/aimarketingflow/stealthshark/issues" class="btn btn-outline btn-sm">Open Issue &rarr;</a>
+            </div>
+            <div class="support-card">
+                <div class="sc-icon">✉️</div>
+                <h4>Contact Us</h4>
+                <p>Questions or feedback? Send us an email</p>
+                <a href="mailto:support@aimarketingflow.com" class="btn btn-outline btn-sm">Email Support &rarr;</a>
+            </div>
+            <div class="support-card">
+                <div class="sc-icon">❓</div>
+                <h4>FAQ</h4>
+                <p>Common questions answered below</p>
+                <a href="#faq" class="btn btn-outline btn-sm">Read FAQ &darr;</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── FAQ ── -->
+<section class="faq-section" id="faq">
+    <div class="wrap">
+        <div class="section-header">
+            <h2>Frequently Asked Questions</h2>
+        </div>
+        <div class="faq-list">
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFaq(this)">
+                    What does StealthShark actually capture?
+                    <span class="arrow">&#9662;</span>
+                </button>
+                <div class="faq-a">
+                    <p>StealthShark captures raw network packets on every active interface using tcpdump under the hood. The output is standard .pcap format compressed with gzip (.pcap.gz), which can be opened directly in Wireshark, tshark, or any pcap-compatible tool.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFaq(this)">
+                    Does it work on macOS, Linux, and Windows?
+                    <span class="arrow">&#9662;</span>
+                </button>
+                <div class="faq-a">
+                    <p>StealthShark is currently built and tested for macOS. It uses tcpdump (pre-installed on macOS and Linux) and psutil for cross-platform interface discovery. Linux support works with minimal changes. Windows support would require WinPcap/Npcap.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFaq(this)">
+                    How much disk space does it use?
+                    <span class="arrow">&#9662;</span>
+                </button>
+                <div class="faq-a">
+                    <p>With real-time gzip compression, StealthShark uses approximately 84% less disk space than uncompressed pcap. A typical hour of capture across all interfaces uses 50&ndash;200 MB compressed, compared to 500 MB&ndash;2 GB uncompressed. Old sessions are automatically archived and cleaned up after 7 days.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFaq(this)">
+                    Will it slow down my computer?
+                    <span class="arrow">&#9662;</span>
+                </button>
+                <div class="faq-a">
+                    <p>No. StealthShark uses approximately 2 MB of RAM per interface and effectively 0% CPU. Even with 11 simultaneous captures running, total memory usage is under 25 MB. Compare this to Wireshark which typically uses 500 MB&ndash;8 GB for a single interface capture.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFaq(this)">
+                    Can I open .pcap.gz files in Wireshark?
+                    <span class="arrow">&#9662;</span>
+                </button>
+                <div class="faq-a">
+                    <p>Yes! Wireshark natively supports .pcap.gz files. Just drag and drop or use File &rarr; Open. No decompression needed&mdash;Wireshark handles it automatically.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFaq(this)">
+                    Does StealthShark require root/sudo access?
+                    <span class="arrow">&#9662;</span>
+                </button>
+                <div class="faq-a">
+                    <p>Packet capture on most interfaces requires elevated permissions. StealthShark automatically tries direct tcpdump first (works if ChmodBPF is installed), then falls back to sudo. Loopback (lo0) capture works without sudo on macOS.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFaq(this)">
+                    Does any data leave my machine?
+                    <span class="arrow">&#9662;</span>
+                </button>
+                <div class="faq-a">
+                    <p>No. StealthShark operates 100% offline. No cloud storage, no external servers, no accounts, no analytics, no data collection. Everything stays on your local disk.</p>
+                </div>
+            </div>
+            <div class="faq-item">
+                <button class="faq-q" onclick="toggleFaq(this)">
+                    What happens if StealthShark crashes?
+                    <span class="arrow">&#9662;</span>
+                </button>
+                <div class="faq-a">
+                    <p>The GUI saves session state every 30 seconds. On restart, it detects the previous session and offers to restore your settings and resume monitoring. Pcap files written before the crash are preserved and valid.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ── FOOTER ── -->
+<footer class="footer">
+    <div class="wrap">
+        <div class="footer-grid">
+            <div class="footer-brand">
+                <a href="https://aimarketingflow.com" class="nav-brand" style="font-size:16px;">AI Marketing Flow</a>
+                <p>Generative strategies for SEO, cybersecurity consulting, and AI-powered business solutions. Building open-source security tools for everyone.</p>
+            </div>
+            <div>
+                <h5>Quick Links</h5>
+                <ul>
+                    <li><a href="https://aimarketingflow.com/cybersecurity-case-studies/">Case Studies</a></li>
+                    <li><a href="https://aimarketingflow.com/cybersecurity-projects/video-tutorials/">Video Library</a></li>
+                    <li><a href="https://aimarketingflow.com/cybersecurity-projects/cyberdefense-guides/">Defense Guides</a></li>
+                </ul>
+            </div>
+            <div>
+                <h5>Projects</h5>
+                <ul>
+                    <li><a href="https://aimarketingflow.com/chaos-lock/">Chaos Lock</a></li>
+                    <li><a href="https://aimarketingflow.com/adaptive-firewall/">Adaptive Firewall</a></li>
+                    <li><a href="https://aimarketingflow.com/erla/">ERLA</a></li>
+                    <li><a href="https://aimarketingflow.com/opendlp/">OpenDLP</a></li>
+                </ul>
+            </div>
+            <div>
+                <h5>About AIMF</h5>
+                <ul>
+                    <li><a href="https://aimarketingflow.com/about/">About</a></li>
+                    <li><a href="https://aimarketingflow.com/contact/">Contact Us</a></li>
+                    <li><a href="https://aimarketingflow.com/terms-of-service-privacy-policy/">Privacy Policy</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 AI Marketing Flow. All rights reserved.</p>
+            <div class="footer-socials">
+                <a href="https://www.facebook.com/profile.php?id=100095271259045">Facebook</a>
+                <a href="https://www.instagram.com/aimarketingflow/">Instagram</a>
+                <a href="https://github.com/aimarketingflow">GitHub</a>
+            </div>
+        </div>
+    </div>
+</footer>
+
+<script>
+function toggleFaq(btn) {
+    const answer = btn.nextElementSibling;
+    const isOpen = btn.classList.contains('open');
+    
+    // Close all
+    document.querySelectorAll('.faq-q').forEach(q => q.classList.remove('open'));
+    document.querySelectorAll('.faq-a').forEach(a => a.classList.remove('open'));
+    
+    // Toggle current
+    if (!isOpen) {
+        btn.classList.add('open');
+        answer.classList.add('open');
+    }
+}
+</script>
+
+</body>
+</html>

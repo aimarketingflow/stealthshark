@@ -50,7 +50,7 @@ cat > "$APP_PATH/Contents/MacOS/StealthShark" << EOF
 # StealthShark Launcher
 
 cd "$SCRIPT_DIR"
-exec /opt/homebrew/bin/python3.13 multi_interface_shark_gui.py
+exec /opt/homebrew/bin/python3 multi_interface_shark_gui.py
 EOF
 
 # Make executable

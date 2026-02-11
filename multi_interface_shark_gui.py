@@ -79,7 +79,9 @@ class MultiInterfaceMonitorThread(QThread):
             self.status_update.emit("🚀 Starting interface statistics monitoring...")
             
             # Monitor loop with stats updates
+            iteration = 0
             while self.running:
+                iteration += 1
                 self.update_interface_stats()
                 
                 # Check for interface activity and start captures if needed
@@ -87,9 +89,26 @@ class MultiInterfaceMonitorThread(QThread):
                     try:
                         active_interfaces = self.monitor.detect_interface_activity()
                         if active_interfaces:
-                            self.status_update.emit(f"📊 Activity detected on: {', '.join(active_interfaces)}")
+                            self.status_update.emit(f"📊 Activity detected on: {', '.join(sorted(active_interfaces))}")
+                            
+                            # Start captures on active interfaces that aren't already capturing
+                            for iface in active_interfaces:
+                                if iface not in self.monitor.active_captures:
+                                    self.monitor.start_capture(iface)
+                                    capture_info = self.monitor.active_captures.get(iface, {})
+                                    self.capture_started.emit(iface, capture_info.get('capture_filename', ''))
                     except Exception as e:
                         self.logger.debug(f"Activity detection error: {e}")
+                
+                # Periodically archive old sessions and clean up (~every 3 minutes at 2s interval)
+                if iteration % 100 == 0:
+                    try:
+                        if hasattr(self.monitor, 'archive_old_sessions'):
+                            self.monitor.archive_old_sessions()
+                        if hasattr(self.monitor, 'cleanup_old_captures'):
+                            self.monitor.cleanup_old_captures()
+                    except Exception as e:
+                        self.logger.debug(f"Archive/cleanup error: {e}")
                 
                 time.sleep(2)  # Update every 2 seconds
                 
@@ -793,7 +812,7 @@ class MultiInterfaceSharkGUI(QMainWindow):
             sessions = {}
             total_size = 0
             
-            for pcap_file in capture_dir.rglob("*.pcap"):
+            for pcap_file in list(capture_dir.rglob("*.pcap")) + list(capture_dir.rglob("*.pcap.gz")):
                 file_size = pcap_file.stat().st_size
                 total_size += file_size
                 
@@ -830,7 +849,14 @@ class MultiInterfaceSharkGUI(QMainWindow):
                     })
             
             # Add summary
-            self.files_list.addItem(f"📊 TOTAL: {len(list(capture_dir.rglob('*.pcap')))} files, {total_size // (1024*1024):.1f} MB")
+            all_pcaps = list(capture_dir.rglob('*.pcap')) + list(capture_dir.rglob('*.pcap.gz'))
+            self.files_list.addItem(f"📊 TOTAL: {len(all_pcaps)} files, {total_size / (1024*1024):.1f} MB")
+            
+            # Show archived sessions
+            archives = list(capture_dir.glob('session_*.tar.gz'))
+            if archives:
+                archive_total = sum(a.stat().st_size for a in archives)
+                self.files_list.addItem(f"📦 ARCHIVES: {len(archives)} archived sessions, {archive_total / (1024*1024):.1f} MB")
             self.files_list.addItem("")
             
             # Add sessions
