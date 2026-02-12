@@ -31,6 +31,20 @@ from PyQt6.QtCore import QThread, pyqtSignal, QTimer, Qt, QSize
 from PyQt6.QtGui import QFont, QBrush, QColor, QPalette, QPixmap, QIcon, QAction
 import plistlib
 
+def _get_app_data_dir():
+    """Get a writable data directory that works both from source and .app bundle"""
+    # Check if we're running inside a .app bundle (frozen by PyInstaller)
+    if getattr(sys, 'frozen', False):
+        # Running as .app — use macOS standard Application Support dir
+        app_data = Path.home() / "Library" / "Application Support" / "StealthShark"
+    else:
+        # Running from source — use the script's own directory
+        app_data = Path(__file__).resolve().parent
+    app_data.mkdir(parents=True, exist_ok=True)
+    return app_data
+
+APP_DATA_DIR = _get_app_data_dir()
+
 # Import monitoring components
 from persistent_wireshark_monitor import PersistentWiresharkMonitor
 import subprocess
@@ -46,10 +60,10 @@ class MultiInterfaceMonitorThread(QThread):
     error_signal = pyqtSignal(str)
     finished_signal = pyqtSignal()
     
-    def __init__(self, capture_dir="./pcap_captures", duration=3600):
+    def __init__(self, capture_dir=None, duration=3600):
         super().__init__()
         self.logger = logging.getLogger("MultiInterfaceThread")
-        self.capture_dir = Path(capture_dir)
+        self.capture_dir = Path(capture_dir) if capture_dir else APP_DATA_DIR / "pcap_captures"
         self.duration = duration
         self.running = False
         self.monitor = None
@@ -668,8 +682,8 @@ class OnboardingWizard(QWizard):
             
             if result.returncode == 0:
                 # Log the permission grant for audit trail
-                log_dir = Path("./gui_logs")
-                log_dir.mkdir(exist_ok=True)
+                log_dir = APP_DATA_DIR / "gui_logs"
+                log_dir.mkdir(parents=True, exist_ok=True)
                 audit_file = log_dir / "permission_audit.log"
                 with open(audit_file, 'a') as f:
                     f.write(f"{datetime.now().isoformat()} | GRANTED | "
@@ -685,8 +699,8 @@ class OnboardingWizard(QWizard):
             else:
                 stderr = result.stderr.decode().strip() if result.stderr else ''
                 # Log the denial
-                log_dir = Path("./gui_logs")
-                log_dir.mkdir(exist_ok=True)
+                log_dir = APP_DATA_DIR / "gui_logs"
+                log_dir.mkdir(parents=True, exist_ok=True)
                 audit_file = log_dir / "permission_audit.log"
                 with open(audit_file, 'a') as f:
                     f.write(f"{datetime.now().isoformat()} | DENIED | "
@@ -896,8 +910,8 @@ class MultiInterfaceSharkGUI(QMainWindow):
         self.tray_icon = None
         self.minimize_to_tray = True
         self.auto_capture = True
-        self.session_state_file = Path("./gui_logs/session_state.json")
-        self.prefs_file = Path("./gui_logs/stealthshark_prefs.json")
+        self.session_state_file = APP_DATA_DIR / "gui_logs" / "session_state.json"
+        self.prefs_file = APP_DATA_DIR / "gui_logs" / "stealthshark_prefs.json"
         self.setup_logging()
         self._load_prefs()
         self._run_onboarding_if_needed()
@@ -913,8 +927,8 @@ class MultiInterfaceSharkGUI(QMainWindow):
         
     def setup_logging(self):
         """Setup verbose logging"""
-        log_dir = Path("./gui_logs")
-        log_dir.mkdir(exist_ok=True)
+        log_dir = APP_DATA_DIR / "gui_logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
         
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         log_file = log_dir / f"multi_interface_gui_{timestamp}.log"
@@ -1291,7 +1305,7 @@ class MultiInterfaceSharkGUI(QMainWindow):
         
         # Capture directory
         layout.addWidget(QLabel("Capture Dir:"))
-        self.dir_edit = QLineEdit("./pcap_captures")
+        self.dir_edit = QLineEdit(str(APP_DATA_DIR / "pcap_captures"))
         layout.addWidget(self.dir_edit)
         
         dir_btn = QPushButton("📂 Browse")
