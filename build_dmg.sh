@@ -51,6 +51,7 @@ a = Analysis(
     binaries=[],
     datas=[
         ('persistent_wireshark_monitor.py', '.'),
+        ('stealth-shark-logo.png', '.'),
     ],
     hiddenimports=[
         'PyQt6.QtCore',
@@ -104,7 +105,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='${APP_NAME}.app',
-    icon=None,
+    icon='stealth-shark-logo.icns',
     bundle_identifier='com.aimf.stealthshark',
     info_plist={
         'CFBundleName': '${APP_NAME}',

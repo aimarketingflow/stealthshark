@@ -45,6 +45,17 @@ def _get_app_data_dir():
 
 APP_DATA_DIR = _get_app_data_dir()
 
+def _get_icon_path():
+    """Get the shark logo path — works from source and from .app bundle"""
+    if getattr(sys, 'frozen', False):
+        base = Path(sys._MEIPASS)
+    else:
+        base = Path(__file__).resolve().parent
+    icon_path = base / "stealth-shark-logo.png"
+    return str(icon_path) if icon_path.exists() else None
+
+SHARK_ICON_PATH = _get_icon_path()
+
 # Import monitoring components
 from persistent_wireshark_monitor import PersistentWiresharkMonitor
 import subprocess
@@ -514,6 +525,9 @@ class OnboardingWizard(QWizard):
         self.setFixedSize(660, 580)
         self.setWizardStyle(QWizard.WizardStyle.ModernStyle)
         
+        if SHARK_ICON_PATH:
+            self.setWindowIcon(QIcon(SHARK_ICON_PATH))
+        
         self.addPage(self._welcome_page())
         self.addPage(self._permissions_page())
         self.addPage(self._settings_page())
@@ -538,8 +552,15 @@ class OnboardingWizard(QWizard):
         page.setTitle("Welcome to StealthShark")
         layout = QVBoxLayout()
         
-        icon = QLabel("🦈")
-        icon.setFont(QFont("Arial", 48))
+        if SHARK_ICON_PATH:
+            logo_pixmap = QPixmap(SHARK_ICON_PATH).scaled(
+                120, 120, Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation)
+            icon = QLabel()
+            icon.setPixmap(logo_pixmap)
+        else:
+            icon = QLabel("🦈")
+            icon.setFont(QFont("Arial", 48))
         icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(icon)
         
@@ -1006,10 +1027,13 @@ class MultiInterfaceSharkGUI(QMainWindow):
         
         self.tray_icon = QSystemTrayIcon(self)
         
-        # Create a simple icon (blue circle as fallback)
-        pixmap = QPixmap(32, 32)
-        pixmap.fill(QColor(0, 212, 255))
-        self.tray_icon.setIcon(QIcon(pixmap))
+        # Use shark logo for tray icon, blue square as fallback
+        if SHARK_ICON_PATH:
+            self.tray_icon.setIcon(QIcon(SHARK_ICON_PATH))
+        else:
+            pixmap = QPixmap(32, 32)
+            pixmap.fill(QColor(0, 212, 255))
+            self.tray_icon.setIcon(QIcon(pixmap))
         self.tray_icon.setToolTip("StealthShark — Network Monitor")
         
         # Create tray menu
@@ -1220,6 +1244,8 @@ class MultiInterfaceSharkGUI(QMainWindow):
     def setup_ui(self):
         """Setup the main user interface"""
         self.setWindowTitle("🦈 Multi-Interface Shark - All Network Monitoring")
+        if SHARK_ICON_PATH:
+            self.setWindowIcon(QIcon(SHARK_ICON_PATH))
         self.setGeometry(100, 100, 1400, 900)
         
         # Central widget
