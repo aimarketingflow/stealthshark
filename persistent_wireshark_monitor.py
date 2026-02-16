@@ -21,6 +21,28 @@ import psutil
 import argparse
 from collections import defaultdict, deque
 
+# Hardcoded fallback interfaces for macOS — used when psutil + tshark both fail
+FALLBACK_INTERFACES = [
+    'lo0',      # Loopback (always present)
+    'en0',      # WiFi (most Macs)
+    'en1',      # Thunderbolt Ethernet
+    'en4',      # USB Ethernet adapter (common on M1 Macs)
+    'en5',      # Additional ethernet
+    'ipsec0',   # VPN tunnel (IPSec)
+    'utun0', 'utun1', 'utun2', 'utun3', 'utun4',  # VPN tunnels
+    'pflog0',   # Firewall logs (critical for security forensics)
+    'awdl0',    # Apple Wireless Direct Link
+    'llw0',     # Low-latency WLAN
+]
+
+# Known tshark install locations on macOS
+TSHARK_PATHS = [
+    '/Applications/Wireshark.app/Contents/MacOS/tshark',  # Standard install
+    '/usr/local/bin/tshark',                              # Homebrew (Intel)
+    '/opt/homebrew/bin/tshark',                           # Homebrew (Apple Silicon)
+    'tshark',                                             # PATH fallback
+]
+
 class PersistentWiresharkMonitor:
     def __init__(self, capture_dir="./pcap_captures", capture_duration=3600, 
                  check_interval=5, alert_callback=None):
@@ -46,6 +68,12 @@ class PersistentWiresharkMonitor:
         
         # Default interfaces to always monitor
         self.default_interfaces = {'lo0', 'en0'}
+        
+        # Discovery state tracking
+        self.using_fallback = False
+        self.tshark_path = None
+        self.last_discovery_attempt = 0
+        self.discovery_retry_interval = 60  # seconds
         
         # Control flags
         self.running = True
@@ -86,43 +114,114 @@ class PersistentWiresharkMonitor:
         self.logger = logging.getLogger(__name__)
         self.logger.info("Persistent Wireshark Monitor initialized")
         
+    def _find_tshark(self):
+        """Find tshark binary using known install locations (Fix #4)"""
+        for path in TSHARK_PATHS:
+            try:
+                if path == 'tshark':
+                    # Check PATH
+                    result = subprocess.run(['which', 'tshark'], 
+                                          capture_output=True, text=True, timeout=5)
+                    if result.returncode == 0:
+                        resolved = result.stdout.strip()
+                        self.logger.info(f"Found tshark in PATH: {resolved}")
+                        return resolved
+                elif os.path.isfile(path) and os.access(path, os.X_OK):
+                    self.logger.info(f"Found tshark at: {path}")
+                    return path
+            except Exception:
+                continue
+        self.logger.warning("tshark not found in any known location")
+        return None
+    
+    def _get_fallback_interfaces(self):
+        """Return verified fallback interface list when discovery fails (Fix #1)"""
+        verified = []
+        try:
+            result = subprocess.run(['ifconfig', '-l'], 
+                                  capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                available = result.stdout.split()
+                verified = [iface for iface in FALLBACK_INTERFACES if iface in available]
+                self.logger.info(f"Fallback interfaces verified via ifconfig: {sorted(verified)}")
+        except Exception as e:
+            self.logger.warning(f"ifconfig verification failed: {e} — using full fallback list")
+            verified = list(FALLBACK_INTERFACES)
+        
+        if not verified:
+            verified = list(FALLBACK_INTERFACES)
+        return set(verified)
+    
     def discover_interfaces(self):
         """Discover all available network interfaces"""
         interfaces = set()
+        psutil_ok = False
+        tshark_ok = False
         
         # Primary: use psutil (always available, no external dependency)
         try:
             for iface in psutil.net_if_addrs().keys():
                 interfaces.add(iface)
+            psutil_ok = len(interfaces) > 0
             self.logger.info(f"psutil discovered {len(interfaces)} interfaces")
         except Exception as e:
             self.logger.error(f"psutil interface discovery failed: {e}")
         
         # Bonus: also try tshark if available (may find extra capture interfaces)
-        try:
-            result = subprocess.run(['tshark', '-D'], 
-                                  capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                for line in result.stdout.strip().split('\n'):
-                    if line and '.' in line:
-                        parts = line.split('.', 1)
-                        if len(parts) > 1:
-                            iface_info = parts[1].strip()
-                            iface_name = iface_info.split()[0]
-                            interfaces.add(iface_name)
-                self.logger.info("tshark discovery also succeeded")
-        except FileNotFoundError:
-            self.logger.info("tshark not found — using psutil interfaces only (this is fine)")
-        except Exception as e:
-            self.logger.debug(f"tshark discovery failed: {e}")
+        # Fix #4: Use absolute path lookup instead of relying on PATH
+        if not self.tshark_path:
+            self.tshark_path = self._find_tshark()
         
-        # Fallback if nothing worked
+        if self.tshark_path:
+            try:
+                result = subprocess.run([self.tshark_path, '-D'], 
+                                      capture_output=True, text=True, timeout=10)
+                if result.returncode == 0:
+                    for line in result.stdout.strip().split('\n'):
+                        if line and '.' in line:
+                            parts = line.split('.', 1)
+                            if len(parts) > 1:
+                                iface_info = parts[1].strip()
+                                iface_name = iface_info.split()[0]
+                                interfaces.add(iface_name)
+                    tshark_ok = True
+                    self.logger.info("tshark discovery also succeeded")
+            except FileNotFoundError:
+                self.tshark_path = None  # Reset so we re-search next time
+                self.logger.warning("tshark binary disappeared — will re-search next retry")
+            except Exception as e:
+                self.logger.debug(f"tshark discovery failed: {e}")
+        else:
+            self.logger.info("tshark not available — using psutil interfaces only")
+        
+        # Fix #1: Hardcoded fallback if both psutil and tshark failed
         if not interfaces:
-            self.logger.warning("No interfaces discovered — using fallback set")
-            interfaces = {'lo0', 'en0', 'en1', 'awdl0'}
+            self.logger.warning("Both psutil and tshark discovery failed — using hardcoded fallback list")
+            interfaces = self._get_fallback_interfaces()
+            self.using_fallback = True
+        elif not psutil_ok:
+            # psutil failed but tshark worked — still merge in fallback for safety
+            fallback = self._get_fallback_interfaces()
+            interfaces.update(fallback)
+            self.using_fallback = True
+            self.logger.warning(f"psutil failed, merged {len(fallback)} fallback interfaces")
+        else:
+            self.using_fallback = False
         
         self.monitored_interfaces = interfaces
-        self.logger.info(f"Discovered interfaces: {sorted(interfaces)}")
+        self.last_discovery_attempt = time.time()
+        
+        # Fix #2: Log discovery mode prominently
+        if self.using_fallback:
+            self.logger.warning(f"⚠️ DEGRADED MODE: Using fallback interface list ({len(interfaces)} interfaces)")
+            self.logger.warning(f"⚠️ Some interfaces may not be monitored. Install Wireshark or check psutil.")
+            if self.alert_callback:
+                self.alert_callback(
+                    f"⚠️ Interface discovery degraded — using fallback list ({len(interfaces)} interfaces). "
+                    f"Install Wireshark.app or ensure psutil is working for full coverage."
+                )
+        else:
+            self.logger.info(f"Discovered interfaces: {sorted(interfaces)}")
         
         for iface in self.default_interfaces:
             if iface in interfaces:
@@ -261,7 +360,8 @@ class PersistentWiresharkMonitor:
             if not cmd:
                 # Fallback to sudo method
                 cmd = ['sudo', 'tcpdump', '-i', interface, '-w', '-', '-s', '0', '-q']
-                self.logger.warning("Using sudo fallback - may require password")
+                # Fix #6: Log capture method at WARNING level, not INFO
+                self.logger.warning(f"⚠️ Using sudo fallback for {interface} — may require password")
             
             # Pipe tcpdump stdout through gzip for real-time compression
             gzip_outfile = open(str(capture_file_abs), 'wb')
@@ -287,6 +387,14 @@ class PersistentWiresharkMonitor:
             
             self.logger.info(f"✅ Started capture on {interface} -> {capture_filename}")
             
+            # Fix #5: Validate capture is actually running after brief startup delay
+            validation_thread = threading.Thread(
+                target=self._validate_capture_startup,
+                args=(interface, capture_filename),
+                daemon=True
+            )
+            validation_thread.start()
+            
             # Send alert if callback provided
             if self.alert_callback:
                 self.alert_callback(f"Started packet capture on {interface}")
@@ -304,6 +412,57 @@ class PersistentWiresharkMonitor:
         except Exception as e:
             self.logger.error(f"Failed to start capture on {interface}: {e}")
             
+    def _validate_capture_startup(self, interface, capture_filename):
+        """Verify capture process is actually running after startup (Fix #5)"""
+        time.sleep(3)  # Give process time to start or fail
+        capture_info = self.active_captures.get(interface)
+        if not capture_info:
+            return  # Capture was already stopped/removed
+        
+        process = capture_info['process']
+        if process.poll() is not None:
+            # Process exited immediately — capture failed
+            stderr_output = ''
+            try:
+                stderr_output = process.stderr.read().decode('utf-8', errors='replace')[:500]
+            except Exception:
+                pass
+            self.logger.error(f"🚨 Capture FAILED on {interface} (exit code {process.returncode}): {stderr_output}")
+            if self.alert_callback:
+                self.alert_callback(f"⚠️ Capture failed on {interface}: process exited immediately")
+            # Clean up the failed capture
+            if interface in self.active_captures:
+                gzip_outfile = self.active_captures[interface].get('gzip_outfile')
+                if gzip_outfile:
+                    try:
+                        gzip_outfile.close()
+                    except Exception:
+                        pass
+                del self.active_captures[interface]
+        else:
+            self.logger.info(f"✅ Capture validated running on {interface} -> {capture_filename}")
+    
+    def retry_interface_discovery(self):
+        """Retry interface discovery if currently in fallback mode (Fix #3)"""
+        if not self.using_fallback:
+            return  # Full discovery is working, no need to retry
+        
+        current_time = time.time()
+        if (current_time - self.last_discovery_attempt) < self.discovery_retry_interval:
+            return  # Too soon to retry
+        
+        self.logger.info("🔄 Retrying interface discovery (currently in fallback mode)...")
+        old_count = len(self.monitored_interfaces)
+        self.discover_interfaces()
+        
+        if not self.using_fallback:
+            self.logger.info(f"✅ Interface discovery recovered — full monitoring restored "
+                           f"({len(self.monitored_interfaces)} interfaces, was {old_count})")
+            if self.alert_callback:
+                self.alert_callback("✅ Full interface discovery restored — all interfaces now monitored")
+        else:
+            self.logger.info(f"Still in fallback mode — will retry in {self.discovery_retry_interval}s")
+    
     def monitor_capture(self, interface):
         """Monitor a specific capture process"""
         capture_info = self.active_captures.get(interface)

@@ -129,6 +129,13 @@ class MultiInterfaceMonitorThread(QThread):
                     except Exception as e:
                         self.logger.debug(f"Activity detection error: {e}")
                 
+                # Fix #3: Retry interface discovery every ~60s if in fallback mode
+                if hasattr(self.monitor, 'retry_interface_discovery'):
+                    try:
+                        self.monitor.retry_interface_discovery()
+                    except Exception as e:
+                        self.logger.debug(f"Discovery retry error: {e}")
+                
                 # Periodically archive old sessions and clean up (~every 3 minutes at 2s interval)
                 if iteration % 100 == 0:
                     try:
@@ -229,7 +236,12 @@ class MultiInterfaceMonitorThread(QThread):
             active_count = sum(1 for data in interface_data.values() if data['is_up'])
             traffic_count = sum(1 for data in interface_data.values() if data['has_activity'])
             if len(interface_data) > 0:
-                self.status_update.emit(f"📊 Stats: {len(interface_data)} interfaces, {active_count} up, {traffic_count} active")
+                # Fix #6: Show fallback mode indicator in stats
+                fallback_tag = ""
+                if self.monitor and getattr(self.monitor, 'using_fallback', False):
+                    monitored = len(self.monitor.monitored_interfaces) if self.monitor else '?'
+                    fallback_tag = f" (⚠️ fallback mode, {monitored} monitored)"
+                self.status_update.emit(f"📊 Stats: {len(interface_data)} interfaces, {active_count} up, {traffic_count} active{fallback_tag}")
             
         except Exception as e:
             self.logger.error(f"Stats update error: {e}")
