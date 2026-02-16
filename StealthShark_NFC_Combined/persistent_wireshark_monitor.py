@@ -89,37 +89,45 @@ class PersistentWiresharkMonitor:
         
     def discover_interfaces(self):
         """Discover all available network interfaces"""
+        interfaces = set()
+        
+        # Primary: use psutil (always available, no external dependency)
         try:
-            # Get interfaces using tshark
-            result = subprocess.run(['tshark', '-D'], 
-                                  capture_output=True, text=True, timeout=10)
-            
-            interfaces = set()
-            for line in result.stdout.strip().split('\n'):
-                if line and '.' in line:
-                    # Parse tshark -D output: "1. en0 (Wi-Fi)"
-                    parts = line.split('.', 1)
-                    if len(parts) > 1:
-                        iface_info = parts[1].strip()
-                        iface_name = iface_info.split()[0]
-                        interfaces.add(iface_name)
-            
-            # Also get from psutil as backup
             for iface in psutil.net_if_addrs().keys():
                 interfaces.add(iface)
-                
-            self.monitored_interfaces = interfaces
-            self.logger.info(f"Discovered interfaces: {sorted(interfaces)}")
-            
-            # Always monitor default interfaces
-            for iface in self.default_interfaces:
-                if iface in interfaces:
-                    self.logger.info(f"Default interface {iface} will be monitored")
-                    
+            self.logger.info(f"psutil discovered {len(interfaces)} interfaces")
         except Exception as e:
-            self.logger.error(f"Failed to discover interfaces: {e}")
-            # Fallback to common interfaces
-            self.monitored_interfaces = {'lo0', 'en0', 'en1', 'awdl0'}
+            self.logger.error(f"psutil interface discovery failed: {e}")
+        
+        # Bonus: also try tshark if available (may find extra capture interfaces)
+        try:
+            result = subprocess.run(['tshark', '-D'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                for line in result.stdout.strip().split('\n'):
+                    if line and '.' in line:
+                        parts = line.split('.', 1)
+                        if len(parts) > 1:
+                            iface_info = parts[1].strip()
+                            iface_name = iface_info.split()[0]
+                            interfaces.add(iface_name)
+                self.logger.info("tshark discovery also succeeded")
+        except FileNotFoundError:
+            self.logger.info("tshark not found — using psutil interfaces only (this is fine)")
+        except Exception as e:
+            self.logger.debug(f"tshark discovery failed: {e}")
+        
+        # Fallback if nothing worked
+        if not interfaces:
+            self.logger.warning("No interfaces discovered — using fallback set")
+            interfaces = {'lo0', 'en0', 'en1', 'awdl0'}
+        
+        self.monitored_interfaces = interfaces
+        self.logger.info(f"Discovered interfaces: {sorted(interfaces)}")
+        
+        for iface in self.default_interfaces:
+            if iface in interfaces:
+                self.logger.info(f"Default interface {iface} will be monitored")
             
     def get_interface_stats(self, interface):
         """Get current packet/byte counts for an interface"""
