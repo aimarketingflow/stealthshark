@@ -52,6 +52,7 @@ a = Analysis(
     datas=[
         ('persistent_wireshark_monitor.py', '.'),
         ('stealth-shark-logo.png', '.'),
+        ('INTEGRITY_HASHES.sha256', '.'),
     ],
     hiddenimports=[
         'PyQt6.QtCore',

@@ -16,6 +16,7 @@ import subprocess
 import traceback
 import logging
 import re
+import hashlib
 from datetime import datetime, timedelta
 from pathlib import Path
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, 
@@ -1061,6 +1062,12 @@ class MultiInterfaceSharkGUI(QMainWindow):
         
         tray_menu.addSeparator()
         
+        integrity_action = QAction("🔒 Verify Integrity", self)
+        integrity_action.triggered.connect(self._verify_integrity)
+        tray_menu.addAction(integrity_action)
+        
+        tray_menu.addSeparator()
+        
         quit_action = QAction("❌ Quit StealthShark", self)
         quit_action.triggered.connect(self._quit_app)
         tray_menu.addAction(quit_action)
@@ -1088,6 +1095,96 @@ class MultiInterfaceSharkGUI(QMainWindow):
         self.show()
         self.raise_()
         self.activateWindow()
+    
+    def _verify_integrity(self):
+        """Verify SHA-256 hashes of source files against the bundled manifest"""
+        try:
+            # Locate the manifest inside the bundle or source dir
+            if getattr(sys, 'frozen', False):
+                base = Path(sys._MEIPASS)
+            else:
+                base = Path(__file__).resolve().parent
+            manifest = base / "INTEGRITY_HASHES.sha256"
+            
+            if not manifest.exists():
+                QMessageBox.warning(self, "Integrity Check",
+                    "⚠️ Hash manifest not found.\nCannot verify integrity.")
+                return
+            
+            total = 0
+            passed = 0
+            failed = 0
+            missing = 0
+            tampered = []
+            
+            self.logger.info("🔒 Starting integrity verification...")
+            self.statusBar().showMessage("🔒 Verifying file integrity...")
+            
+            for line in manifest.read_text().splitlines():
+                line = line.strip()
+                if not line or 'git commit' in line:
+                    continue
+                parts = line.split('  ', 1)
+                if len(parts) != 2 or len(parts[0]) != 64:
+                    continue
+                
+                expected_hash, file_path = parts
+                total += 1
+                target = base / file_path
+                
+                if not target.exists():
+                    # Some files won't be in the bundle — skip non-critical ones
+                    if file_path.endswith(('.py', '.sh')):
+                        # Core files that should be present
+                        if target.name in ('multi_interface_shark_gui.py',
+                                          'persistent_wireshark_monitor.py'):
+                            missing += 1
+                            tampered.append(f"⚠️ MISSING: {file_path}")
+                    # Non-core files (docs, tests) are expected to be absent in bundle
+                    continue
+                
+                sha256 = hashlib.sha256()
+                sha256.update(target.read_bytes())
+                actual_hash = sha256.hexdigest()
+                
+                if actual_hash == expected_hash:
+                    passed += 1
+                else:
+                    failed += 1
+                    tampered.append(f"🚨 TAMPERED: {file_path}")
+                    self.logger.warning(f"Integrity mismatch: {file_path}")
+            
+            # Build result message
+            if failed == 0 and missing == 0:
+                icon = QMessageBox.Icon.Information
+                title = "✅ Integrity Check Passed"
+                msg = (f"All {passed} verifiable files match their expected hashes.\n\n"
+                       f"No tampering detected.\n"
+                       f"Total in manifest: {total}")
+                self.logger.info(f"✅ Integrity check passed: {passed}/{total} verified")
+            else:
+                icon = QMessageBox.Icon.Critical
+                title = "🚨 Integrity Check FAILED"
+                details = "\n".join(tampered)
+                msg = (f"Tampering detected!\n\n"
+                       f"Passed: {passed}\n"
+                       f"Failed: {failed}\n"
+                       f"Missing: {missing}\n\n"
+                       f"{details}")
+                self.logger.error(f"🚨 Integrity check FAILED: {failed} tampered, {missing} missing")
+            
+            self.statusBar().showMessage(f"Integrity: {passed} passed, {failed} failed, {missing} missing")
+            
+            box = QMessageBox(self)
+            box.setIcon(icon)
+            box.setWindowTitle(title)
+            box.setText(msg)
+            box.exec()
+            
+        except Exception as e:
+            self.logger.error(f"Integrity check error: {e}")
+            QMessageBox.critical(self, "Integrity Check Error",
+                f"Error during verification:\n{e}")
     
     def _quit_app(self):
         """Actually quit the application (not just minimize)"""
