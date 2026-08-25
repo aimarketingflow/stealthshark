@@ -22,7 +22,7 @@ Unified network monitoring application combining StealthShark packet capture wit
 
 ## Usage
 ```bash
-cd /Users/flowgirl/Documents/_MobileShield/StealthShark_NFC_Combined
+cd <PROJECT_DIR>
 python3 stealthshark_nfc_combined.py
 ```
 

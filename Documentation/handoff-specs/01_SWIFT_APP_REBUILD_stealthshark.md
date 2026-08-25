@@ -7,11 +7,11 @@ Rebuild the StealthShark network monitor from a Python/PyQt6/PyInstaller app int
 ## Background
 
 StealthShark is currently a Python GUI app (`multi_interface_shark_gui.py`, ~75KB) using PyQt6, bundled via PyInstaller into an 81MB .app. The Python source lives at:
-- `/Users/meep/Documents/StealthShark3.0/stealthshark/multi_interface_shark_gui.py`
-- `/Users/meep/Documents/StealthShark3.0/stealthshark/persistent_wireshark_monitor.py`
+- `multi_interface_shark_gui.py` (repo root)
+- `persistent_wireshark_monitor.py` (repo root)
 
 A Swift rewrite already exists as a skeleton at:
-- `/Users/meep/Documents/StealthShark3.0/stealthshark/StealthSharkApp/`
+- `StealthSharkApp/` (repo root)
 
 This skeleton compiles and builds but needs to be verified as feature-complete, tested, and installed.
 

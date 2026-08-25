@@ -34,7 +34,7 @@ except ImportError:
     PersistentWiresharkMonitor = None
 
 # Import Anti-Pineapple components
-sys.path.append('/Users/flowgirl/Documents/_MobileShield/anti-pineapple-public')
+sys.path.append(os.path.expanduser('~/Documents/_MobileShield/anti-pineapple-public'))
 try:
     from pineapple_detector import PineappleDetector
     from wifi_connection_controller import WiFiConnectionController

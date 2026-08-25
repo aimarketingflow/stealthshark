@@ -7,7 +7,7 @@ echo "🦈 Starting StealthShark Enhanced GUI..."
 echo "================================"
 
 # Navigate to the actual StealthShark project directory
-cd "/Users/flowgirl/Documents/StealthShark"
+cd "<PROJECT_DIR>"
 
 # Verify we're in the right directory
 if [ ! -f "enhanced_wireshark_monitor_gui.py" ]; then

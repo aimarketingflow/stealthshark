@@ -77,10 +77,15 @@ nfc_tags.json.backup
 *Chatlog*
 _Chatlogs/
 StealthShark_chatlogs/
+**/_Chatlogs*/
 
 # PyInstaller / app bundles
 *.spec
 StealthSharkAppLauncher*.app/
+StealthSharkAppLauncher*/
+
+# Hardcoded user paths (PII scrub)
+# Do not commit files containing real macOS usernames in paths
 
 # Swift / SPM build artifacts
 StealthSharkApp/.build/

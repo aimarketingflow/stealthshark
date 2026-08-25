@@ -1,5 +1,0 @@
-#!/bin/bash
-# StealthShark Launcher
-
-cd "/Users/meep/Documents/Stealthshark2"
-exec /opt/homebrew/bin/python3.13 multi_interface_shark_gui.py
