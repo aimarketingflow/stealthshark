@@ -11,8 +11,8 @@ echo "🦈 Building StealthShark Standalone Application"
 echo "================================================"
 echo ""
 
-# Add Python bin to PATH for pyinstaller
-export PATH="$HOME/Library/Python/3.9/bin:$PATH"
+# Activate the virtual environment
+source "$SCRIPT_DIR/stealthshark_env/bin/activate"
 
 # Clean previous builds
 echo "🧹 Cleaning previous builds..."
@@ -32,8 +32,8 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('stealthshark_settings.json', '.'),
         ('persistent_wireshark_monitor.py', '.'),
+        ('stealth-shark-logo.png', '.'),
     ],
     hiddenimports=[
         'PyQt6.QtCore',
@@ -86,13 +86,13 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='StealthShark.app',
-    icon=None,
+    icon='stealth-shark-logo.icns',
     bundle_identifier='com.aimf.stealthshark',
     info_plist={
         'CFBundleName': 'StealthShark',
         'CFBundleDisplayName': 'StealthShark Network Monitor',
-        'CFBundleVersion': '2.0.0',
-        'CFBundleShortVersionString': '2.0.0',
+        'CFBundleVersion': '3.0.0',
+        'CFBundleShortVersionString': '3.0.0',
         'NSHighResolutionCapable': True,
         'LSMinimumSystemVersion': '10.13.0',
         'NSPrincipalClass': 'NSApplication',

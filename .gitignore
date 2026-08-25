@@ -81,3 +81,10 @@ StealthShark_chatlogs/
 # PyInstaller / app bundles
 *.spec
 StealthSharkAppLauncher*.app/
+
+# Swift / SPM build artifacts
+StealthSharkApp/.build/
+StealthSharkApp/dist/
+
+# Agent data (local state, not config)
+.agent/data/
