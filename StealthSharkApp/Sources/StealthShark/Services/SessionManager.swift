@@ -53,7 +53,7 @@ final class SessionManager {
     struct Preferences: Codable {
         var autoStartCapture: Bool = true
         var minimizeToMenuBar: Bool = true
-        var captureRotationHours: Int = 1
+        var captureRotationHours: Int = 4
         var maxDiskUsageGB: Int = 30
         var cleanupAfterDays: Int = 7
         var monitoredInterfaces: [String] = [] // empty = all

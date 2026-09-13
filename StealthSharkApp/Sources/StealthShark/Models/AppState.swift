@@ -88,10 +88,11 @@ final class AppState: ObservableObject {
             await MainActor.run {
                 self.interfaces = discovered
                 let captureable = discovered.filter { CaptureEngine.shouldCapture($0) }
+                let prefs = self.sessionManager.loadPreferences()
                 self.statusMessage = "Monitoring \(captureable.count) active interfaces"
                 self.log("Discovered \(discovered.count) interfaces, capturing on \(captureable.count)", type: .info)
-                DebugLog.debug("monitoringTask: starting capture on \(captureable.count) of \(discovered.count) interfaces (filtered)", source: "AppState")
-                self.captureEngine.startCapture(interfaces: discovered)
+                DebugLog.debug("monitoringTask: starting capture on \(captureable.count) of \(discovered.count) interfaces (filtered), rotation=\(prefs.captureRotationHours)h", source: "AppState")
+                self.captureEngine.startCapture(interfaces: discovered, rotationHours: prefs.captureRotationHours)
                 self.isCapturing = true
                 // Immediate stats refresh so Capture tab updates without waiting for first poll tick
                 self.captureStats = self.captureEngine.currentStats
@@ -294,16 +295,17 @@ final class AppState: ObservableObject {
                 }
 
                 self.interfaces = self.networkMonitor.interfaces
+                let prefs = self.sessionManager.loadPreferences()
 
                 for iface in interfacesToCapture {
                     DebugLog.debug("startCapture(): will capture on \(iface.name) (\(iface.displayName))", source: "AppState")
                 }
 
-                self.captureEngine.startCapture(interfaces: interfacesToCapture)
+                self.captureEngine.startCapture(interfaces: interfacesToCapture, rotationHours: prefs.captureRotationHours)
                 self.isCapturing = true
                 self.statusMessage = "Capturing on \(interfacesToCapture.count) interface(s)"
                 self.log("Capture started on \(interfacesToCapture.count) interface(s)", type: .capture)
-                DebugLog.info("startCapture() — capture started on \(interfacesToCapture.count) interface(s)", source: "AppState")
+                DebugLog.info("startCapture() — capture started on \(interfacesToCapture.count) interface(s), rotation=\(prefs.captureRotationHours)h", source: "AppState")
                 self.startCaptureStatsPolling()
             }
         }

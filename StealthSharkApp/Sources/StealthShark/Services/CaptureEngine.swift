@@ -56,7 +56,7 @@ final class CaptureEngine: ObservableObject {
     }
 
     // MARK: - Capture Control
-    func startCapture(interfaces: [NetworkInterface]) {
+    func startCapture(interfaces: [NetworkInterface], rotationHours: Int = 4) {
         guard let tshark = tsharkPath else {
             DebugLog.error("startCapture(): tshark not found", source: "CaptureEngine")
             return
@@ -65,7 +65,7 @@ final class CaptureEngine: ObservableObject {
         // Filter to only meaningful interfaces
         let captureable = interfaces.filter { Self.shouldCapture($0) }
         let skipped = interfaces.count - captureable.count
-        DebugLog.info("startCapture(): \(interfaces.count) interfaces → \(captureable.count) captureable (skipped \(skipped) blocked/inactive), tshark=\(tshark)", source: "CaptureEngine")
+        DebugLog.info("startCapture(): \(interfaces.count) interfaces → \(captureable.count) captureable (skipped \(skipped) blocked/inactive), rotation=\(rotationHours)h, tshark=\(tshark)", source: "CaptureEngine")
         if skipped > 0 {
             let skippedNames = interfaces.filter { !Self.shouldCapture($0) }.map { $0.name }.joined(separator: ", ")
             DebugLog.debug("startCapture(): skipped: \(skippedNames)", source: "CaptureEngine")
@@ -75,7 +75,7 @@ final class CaptureEngine: ObservableObject {
         currentStats.startTime = Date()
 
         for iface in captureable {
-            startCaptureOnInterface(iface.name, tsharkPath: tshark)
+            startCaptureOnInterface(iface.name, tsharkPath: tshark, rotationHours: rotationHours)
         }
 
         currentStats.activeCaptureCount = captureProcesses.count
@@ -115,7 +115,7 @@ final class CaptureEngine: ObservableObject {
     }
 
     // MARK: - Per-Interface Capture
-    private func startCaptureOnInterface(_ interface: String, tsharkPath: String) {
+    private func startCaptureOnInterface(_ interface: String, tsharkPath: String, rotationHours: Int = 4) {
         queue.async { [weak self] in
             guard let self = self else { return }
 
@@ -124,17 +124,21 @@ final class CaptureEngine: ObservableObject {
             let filename = "capture_\(interface)_\(timestamp).pcapng"
             let filepath = self.captureDir.appendingPathComponent(filename)
 
+            let durationSeconds = rotationHours * 3600
+            // tshark filesize is in KB; 3 GB = 3,000,000 KB
+            let filesizeKB = 3_000_000
+
             let process = Process()
             process.executableURL = URL(fileURLWithPath: tsharkPath)
             process.arguments = [
                 "-i", interface,
                 "-w", filepath.path,
-                "-b", "duration:3600",    // Rotate every hour
-                "-b", "filesize:102400",  // Rotate at 100MB
-                "-q"                       // Quiet mode
+                "-b", "duration:\(durationSeconds)",  // Rotate every N hours
+                "-b", "filesize:\(filesizeKB)",        // Rotate at 3 GB
+                "-q"                                   // Quiet mode
             ]
 
-            DebugLog.debug("startCaptureOnInterface(\(interface)): cmd=\(tsharkPath) -i \(interface) -w \(filepath.path) -b duration:3600 -b filesize:102400 -q", source: "CaptureEngine")
+            DebugLog.debug("startCaptureOnInterface(\(interface)): cmd=\(tsharkPath) -i \(interface) -w \(filepath.path) -b duration:\(durationSeconds) -b filesize:\(filesizeKB) -q", source: "CaptureEngine")
 
             // Capture stdout/stderr for packet counts
             let outputPipe = Pipe()
