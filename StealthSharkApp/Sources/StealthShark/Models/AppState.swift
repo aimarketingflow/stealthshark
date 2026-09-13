@@ -87,11 +87,11 @@ final class AppState: ObservableObject {
 
             await MainActor.run {
                 self.interfaces = discovered
-                self.statusMessage = "Monitoring \(discovered.filter(\.isUp).count) active interfaces"
-                self.log("Discovered \(discovered.count) interfaces", type: .info)
-                let upInterfaces = discovered.filter(\.isUp)
-                DebugLog.debug("monitoringTask: starting capture on \(upInterfaces.count) up interfaces", source: "AppState")
-                self.captureEngine.startCapture(interfaces: upInterfaces)
+                let captureable = discovered.filter { CaptureEngine.shouldCapture($0) }
+                self.statusMessage = "Monitoring \(captureable.count) active interfaces"
+                self.log("Discovered \(discovered.count) interfaces, capturing on \(captureable.count)", type: .info)
+                DebugLog.debug("monitoringTask: starting capture on \(captureable.count) of \(discovered.count) interfaces (filtered)", source: "AppState")
+                self.captureEngine.startCapture(interfaces: discovered)
                 self.isCapturing = true
                 // Immediate stats refresh so Capture tab updates without waiting for first poll tick
                 self.captureStats = self.captureEngine.currentStats
@@ -136,6 +136,13 @@ final class AppState: ObservableObject {
                             DebugLog.info("Pattern detected: [\(p.severity.rawValue)] \(p.patternType.rawValue) on \(p.interface) — \(p.description)", source: "AppState")
                         }
                     }
+                }
+
+                // Disk cleanup every 60 seconds (every 60 ticks)
+                if tickCount % 60 == 0 {
+                    let prefs = self.sessionManager.loadPreferences()
+                    self.captureEngine.cleanupOldCaptures(olderThan: prefs.cleanupAfterDays)
+                    self.captureEngine.enforceDiskLimit(maxGB: prefs.maxDiskUsageGB)
                 }
 
                 // Auto-restart check every 10 seconds (every 10 ticks at 1s interval)
@@ -248,7 +255,7 @@ final class AppState: ObservableObject {
 
             let interfacesToCapture: [NetworkInterface]
             let needsDiscovery: Bool = await MainActor.run {
-                self.interfaces.filter(\.isUp).isEmpty
+                self.interfaces.filter { CaptureEngine.shouldCapture($0) }.isEmpty
             }
 
             if needsDiscovery {
@@ -257,12 +264,12 @@ final class AppState: ObservableObject {
                     self.networkMonitor.discoverInterfaces()
                 }
                 let discovered = self.networkMonitor.interfaces
-                interfacesToCapture = discovered.filter(\.isUp)
-                DebugLog.info("startCapture(): discovery found \(discovered.count) total, \(interfacesToCapture.count) up", source: "AppState")
+                interfacesToCapture = discovered.filter { CaptureEngine.shouldCapture($0) }
+                DebugLog.info("startCapture(): discovery found \(discovered.count) total, \(interfacesToCapture.count) captureable", source: "AppState")
             } else {
                 let existing = await MainActor.run { self.interfaces }
-                interfacesToCapture = existing.filter(\.isUp)
-                DebugLog.debug("startCapture(): using existing \(interfacesToCapture.count) up interfaces", source: "AppState")
+                interfacesToCapture = existing.filter { CaptureEngine.shouldCapture($0) }
+                DebugLog.debug("startCapture(): using existing \(interfacesToCapture.count) captureable interfaces", source: "AppState")
             }
 
             await MainActor.run {

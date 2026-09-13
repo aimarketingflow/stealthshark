@@ -72,8 +72,21 @@ final class NetworkMonitorService: ObservableObject {
                     let ip = String(cString: hostname)
                     interfaceMap[name]?.ipAddresses.append(ip)
                     DebugLog.trace("  \(name): IPv4 = \(ip)", source: "NetworkMonitor")
-                } else {
-                    DebugLog.trace("  \(name): getnameinfo failed for IPv4", source: "NetworkMonitor")
+                }
+            } else if family == UInt8(AF_INET6) {
+                // Extract IPv6 address
+                var hostname = [CChar](repeating: 0, count: Int(NI_MAXHOST))
+                if getnameinfo(
+                    addr.pointee.ifa_addr,
+                    socklen_t(addr.pointee.ifa_addr.pointee.sa_len),
+                    &hostname, socklen_t(hostname.count),
+                    nil, 0, NI_NUMERICHOST
+                ) == 0 {
+                    let ip = String(cString: hostname)
+                    // Store with scope ID stripped for cleaner filtering
+                    let cleanIP = ip.split(separator: "%").first.map(String.init) ?? ip
+                    interfaceMap[name]?.ipAddresses.append(cleanIP)
+                    DebugLog.trace("  \(name): IPv6 = \(cleanIP)", source: "NetworkMonitor")
                 }
             }
 

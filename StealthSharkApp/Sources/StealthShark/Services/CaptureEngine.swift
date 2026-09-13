@@ -36,6 +36,25 @@ final class CaptureEngine: ObservableObject {
         tsharkPath != nil
     }
 
+    // MARK: - Interface Filtering
+    /// Interfaces that should never be captured on — virtual/firewall/bridge
+    /// interfaces with no real network traffic.
+    private static let blockedInterfaces: Set<String> = [
+        "pflog0", "llw0", "bridge0", "ap1", "anpi0", "anpi1", "awdl0",
+        "lo0", "gif0", "stf0", "XHC20", "utun6", "utun7", "utun8", "utun9"
+    ]
+
+    /// Returns true if this interface is worth capturing on.
+    static func shouldCapture(_ iface: NetworkInterface) -> Bool {
+        guard iface.isUp else { return false }
+        guard !blockedInterfaces.contains(iface.name) else { return false }
+        // Must have at least one non-link-local IP address
+        let hasRealIP = iface.ipAddresses.contains { ip in
+            !ip.hasPrefix("fe80") && !ip.hasPrefix("169.254") && ip != "::1" && ip != "127.0.0.1"
+        }
+        return hasRealIP
+    }
+
     // MARK: - Capture Control
     func startCapture(interfaces: [NetworkInterface]) {
         guard let tshark = tsharkPath else {
@@ -43,16 +62,24 @@ final class CaptureEngine: ObservableObject {
             return
         }
 
-        DebugLog.info("startCapture(): \(interfaces.count) interfaces, tshark=\(tshark)", source: "CaptureEngine")
+        // Filter to only meaningful interfaces
+        let captureable = interfaces.filter { Self.shouldCapture($0) }
+        let skipped = interfaces.count - captureable.count
+        DebugLog.info("startCapture(): \(interfaces.count) interfaces → \(captureable.count) captureable (skipped \(skipped) blocked/inactive), tshark=\(tshark)", source: "CaptureEngine")
+        if skipped > 0 {
+            let skippedNames = interfaces.filter { !Self.shouldCapture($0) }.map { $0.name }.joined(separator: ", ")
+            DebugLog.debug("startCapture(): skipped: \(skippedNames)", source: "CaptureEngine")
+        }
+
         isCapturing = true
         currentStats.startTime = Date()
 
-        for iface in interfaces {
+        for iface in captureable {
             startCaptureOnInterface(iface.name, tsharkPath: tshark)
         }
 
         currentStats.activeCaptureCount = captureProcesses.count
-        DebugLog.debug("startCapture(): dispatched \(interfaces.count) capture tasks", source: "CaptureEngine")
+        DebugLog.debug("startCapture(): dispatched \(captureable.count) capture tasks", source: "CaptureEngine")
     }
 
     func stopCapture() {
@@ -185,21 +212,87 @@ final class CaptureEngine: ObservableObject {
         let fm = FileManager.default
         let cutoff = Date().addingTimeInterval(-Double(days * 86400))
 
-        guard let contents = try? fm.contentsOfDirectory(at: captureDir, includingPropertiesForKeys: [.creationDateKey]) else {
+        guard let contents = try? fm.contentsOfDirectory(at: captureDir, includingPropertiesForKeys: [.creationDateKey, .fileSizeKey]) else {
             DebugLog.warn("cleanupOldCaptures(): failed to list \(captureDir.path)", source: "CaptureEngine")
             return
         }
 
         var deletedCount = 0
-        for fileURL in contents {
-            if let attrs = try? fm.attributesOfItem(atPath: fileURL.path),
-               let created = attrs[.creationDate] as? Date,
-               created < cutoff {
-                try? fm.removeItem(at: fileURL)
-                deletedCount += 1
-                DebugLog.debug("cleanupOldCaptures(): deleted \(fileURL.lastPathComponent)", source: "CaptureEngine")
+        var deletedBytes: UInt64 = 0
+        for fileURL in contents where fileURL.pathExtension == "pcapng" {
+            if let attrs = try? fm.attributesOfItem(atPath: fileURL.path) {
+                let created = attrs[.creationDate] as? Date ?? Date.distantPast
+                let size = attrs[.size] as? UInt64 ?? 0
+
+                // Delete if older than cutoff OR if empty (<1 KB = just pcap header, no packets)
+                if created < cutoff || size < 1024 {
+                    try? fm.removeItem(at: fileURL)
+                    deletedCount += 1
+                    deletedBytes += size
+                    if size < 1024 {
+                        DebugLog.debug("cleanupOldCaptures(): deleted empty file \(fileURL.lastPathComponent) (\(size) bytes)", source: "CaptureEngine")
+                    } else {
+                        DebugLog.debug("cleanupOldCaptures(): deleted old file \(fileURL.lastPathComponent)", source: "CaptureEngine")
+                    }
+                }
             }
         }
-        DebugLog.info("cleanupOldCaptures(): deleted \(deletedCount) file(s)", source: "CaptureEngine")
+        DebugLog.info("cleanupOldCaptures(): deleted \(deletedCount) file(s), freed \(formatBytes(deletedBytes))", source: "CaptureEngine")
+    }
+
+    /// Enforce a maximum disk usage by deleting oldest pcap files until under the limit.
+    func enforceDiskLimit(maxGB: Int) {
+        guard maxGB > 0 else { return }
+        let maxBytes = UInt64(maxGB) * 1_000_000_000
+        DebugLog.info("enforceDiskLimit(maxGB=\(maxGB))", source: "CaptureEngine")
+
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(at: captureDir, includingPropertiesForKeys: [.fileSizeKey, .creationDateKey]) else {
+            DebugLog.warn("enforceDiskLimit(): failed to list \(captureDir.path)", source: "CaptureEngine")
+            return
+        }
+
+        // Build list of pcap files with size and creation date
+        var files: [(url: URL, size: UInt64, created: Date)] = []
+        var totalSize: UInt64 = 0
+        for fileURL in contents where fileURL.pathExtension == "pcapng" {
+            if let attrs = try? fm.attributesOfItem(atPath: fileURL.path) {
+                let size = attrs[.size] as? UInt64 ?? 0
+                let created = attrs[.creationDate] as? Date ?? Date.distantPast
+                files.append((fileURL, size, created))
+                totalSize += size
+            }
+        }
+
+        if totalSize <= maxBytes {
+            DebugLog.debug("enforceDiskLimit(): total \(formatBytes(totalSize)) <= limit \(formatBytes(maxBytes)), no cleanup needed", source: "CaptureEngine")
+            return
+        }
+
+        DebugLog.warn("enforceDiskLimit(): total \(formatBytes(totalSize)) > limit \(formatBytes(maxBytes)), deleting oldest files", source: "CaptureEngine")
+
+        // Sort oldest first and delete until under limit
+        files.sort { $0.created < $1.created }
+        var deletedCount = 0
+        var freedBytes: UInt64 = 0
+        for file in files {
+            if totalSize <= maxBytes { break }
+            try? fm.removeItem(at: file.url)
+            totalSize -= file.size
+            freedBytes += file.size
+            deletedCount += 1
+        }
+        DebugLog.info("enforceDiskLimit(): deleted \(deletedCount) file(s), freed \(formatBytes(freedBytes)), now at \(formatBytes(totalSize))", source: "CaptureEngine")
+    }
+
+    private func formatBytes(_ bytes: UInt64) -> String {
+        let units = ["B", "KB", "MB", "GB", "TB"]
+        var size = Double(bytes)
+        var unitIdx = 0
+        while size > 1024 && unitIdx < units.count - 1 {
+            size /= 1024
+            unitIdx += 1
+        }
+        return String(format: "%.1f %@", size, units[unitIdx])
     }
 }
