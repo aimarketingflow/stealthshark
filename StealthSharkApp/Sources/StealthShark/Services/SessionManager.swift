@@ -54,7 +54,7 @@ final class SessionManager {
         var autoStartCapture: Bool = true
         var minimizeToMenuBar: Bool = true
         var captureRotationHours: Int = 1
-        var maxDiskUsageGB: Int = 50
+        var maxDiskUsageGB: Int = 30
         var cleanupAfterDays: Int = 7
         var monitoredInterfaces: [String] = [] // empty = all
         var autoRestartEnabled: Bool = true

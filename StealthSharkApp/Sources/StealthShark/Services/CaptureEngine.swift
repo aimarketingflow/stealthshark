@@ -217,6 +217,8 @@ final class CaptureEngine: ObservableObject {
             return
         }
 
+        // Separate: empty files get deleted, old files get archived
+        var toArchive: [(url: URL, size: UInt64)] = []
         var deletedCount = 0
         var deletedBytes: UInt64 = 0
         for fileURL in contents where fileURL.pathExtension == "pcapng" {
@@ -224,32 +226,42 @@ final class CaptureEngine: ObservableObject {
                 let created = attrs[.creationDate] as? Date ?? Date.distantPast
                 let size = attrs[.size] as? UInt64 ?? 0
 
-                // Delete if older than cutoff OR if empty (<1 KB = just pcap header, no packets)
-                if created < cutoff || size < 1024 {
+                if size < 1024 {
+                    // Empty files (<1 KB = just pcap header, no packets) — delete
                     try? fm.removeItem(at: fileURL)
                     deletedCount += 1
                     deletedBytes += size
-                    if size < 1024 {
-                        DebugLog.debug("cleanupOldCaptures(): deleted empty file \(fileURL.lastPathComponent) (\(size) bytes)", source: "CaptureEngine")
-                    } else {
-                        DebugLog.debug("cleanupOldCaptures(): deleted old file \(fileURL.lastPathComponent)", source: "CaptureEngine")
-                    }
+                    DebugLog.debug("cleanupOldCaptures(): deleted empty file \(fileURL.lastPathComponent) (\(size) bytes)", source: "CaptureEngine")
+                } else if created < cutoff {
+                    // Old files with real data — archive them
+                    toArchive.append((fileURL, size))
                 }
             }
         }
-        DebugLog.info("cleanupOldCaptures(): deleted \(deletedCount) file(s), freed \(formatBytes(deletedBytes))", source: "CaptureEngine")
+
+        var archivedCount = 0
+        var archivedBytes: UInt64 = 0
+        if !toArchive.isEmpty {
+            archivedCount = archiveFiles(toArchive.map { $0.url })
+            archivedBytes = toArchive.reduce(0) { $0 + $1.size }
+        }
+
+        DebugLog.info("cleanupOldCaptures(): deleted \(deletedCount) empty file(s) (\(formatBytes(deletedBytes))), archived \(archivedCount) old file(s) (\(formatBytes(archivedBytes)))", source: "CaptureEngine")
     }
 
-    /// Enforce a maximum disk usage by deleting oldest pcap files until under the limit.
-    func enforceDiskLimit(maxGB: Int) {
-        guard maxGB > 0 else { return }
+    /// When disk usage exceeds the limit, archive (compress) the oldest pcap files
+    /// into a timestamped .tar.gz archive instead of deleting them.
+    /// Returns the number of files archived.
+    @discardableResult
+    func enforceDiskLimit(maxGB: Int) -> Int {
+        guard maxGB > 0 else { return 0 }
         let maxBytes = UInt64(maxGB) * 1_000_000_000
         DebugLog.info("enforceDiskLimit(maxGB=\(maxGB))", source: "CaptureEngine")
 
         let fm = FileManager.default
         guard let contents = try? fm.contentsOfDirectory(at: captureDir, includingPropertiesForKeys: [.fileSizeKey, .creationDateKey]) else {
             DebugLog.warn("enforceDiskLimit(): failed to list \(captureDir.path)", source: "CaptureEngine")
-            return
+            return 0
         }
 
         // Build list of pcap files with size and creation date
@@ -265,24 +277,98 @@ final class CaptureEngine: ObservableObject {
         }
 
         if totalSize <= maxBytes {
-            DebugLog.debug("enforceDiskLimit(): total \(formatBytes(totalSize)) <= limit \(formatBytes(maxBytes)), no cleanup needed", source: "CaptureEngine")
-            return
+            DebugLog.debug("enforceDiskLimit(): total \(formatBytes(totalSize)) <= limit \(formatBytes(maxBytes)), no archiving needed", source: "CaptureEngine")
+            return 0
         }
 
-        DebugLog.warn("enforceDiskLimit(): total \(formatBytes(totalSize)) > limit \(formatBytes(maxBytes)), deleting oldest files", source: "CaptureEngine")
+        let overBy = totalSize - maxBytes
+        DebugLog.warn("enforceDiskLimit(): total \(formatBytes(totalSize)) > limit \(formatBytes(maxBytes)) by \(formatBytes(overBy)), archiving oldest files", source: "CaptureEngine")
 
-        // Sort oldest first and delete until under limit
+        // Sort oldest first and archive until under limit
         files.sort { $0.created < $1.created }
-        var deletedCount = 0
-        var freedBytes: UInt64 = 0
+        var toArchive: [URL] = []
+        var archivedBytes: UInt64 = 0
         for file in files {
             if totalSize <= maxBytes { break }
-            try? fm.removeItem(at: file.url)
+            toArchive.append(file.url)
             totalSize -= file.size
-            freedBytes += file.size
-            deletedCount += 1
+            archivedBytes += file.size
         }
-        DebugLog.info("enforceDiskLimit(): deleted \(deletedCount) file(s), freed \(formatBytes(freedBytes)), now at \(formatBytes(totalSize))", source: "CaptureEngine")
+
+        let archivedCount = archiveFiles(toArchive)
+        DebugLog.info("enforceDiskLimit(): archived \(archivedCount) file(s) (\(formatBytes(archivedBytes))), now at \(formatBytes(totalSize))", source: "CaptureEngine")
+        return archivedCount
+    }
+
+    /// Check disk usage and warn if over the threshold. Returns true if a warning was issued.
+    @discardableResult
+    func checkDiskUsageWarning(thresholdGB: Int = 30) -> Bool {
+        let thresholdBytes = UInt64(thresholdGB) * 1_000_000_000
+        let fm = FileManager.default
+        guard let contents = try? fm.contentsOfDirectory(at: captureDir, includingPropertiesForKeys: [.fileSizeKey]) else {
+            return false
+        }
+
+        var totalSize: UInt64 = 0
+        for fileURL in contents where fileURL.pathExtension == "pcapng" {
+            if let attrs = try? fm.attributesOfItem(atPath: fileURL.path),
+               let size = attrs[.size] as? UInt64 {
+                totalSize += size
+            }
+        }
+
+        if totalSize >= thresholdBytes {
+            DebugLog.warn("⚠️ Disk usage warning: \(formatBytes(totalSize)) exceeds \(thresholdGB) GB threshold", source: "CaptureEngine")
+            return true
+        }
+        return false
+    }
+
+    /// Compress pcap files into a timestamped .tar.gz archive and remove the originals.
+    /// Returns the number of files successfully archived.
+    private func archiveFiles(_ files: [URL]) -> Int {
+        guard !files.isEmpty else { return 0 }
+
+        let archiveDir = captureDir.appendingPathComponent("archives")
+        try? FileManager.default.createDirectory(at: archiveDir, withIntermediateDirectories: true)
+
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+            .replacingOccurrences(of: ":", with: "-")
+        let archivePath = archiveDir.appendingPathComponent("archive_\(timestamp).tar.gz")
+
+        // Build tar command: tar -czf <archive> <files...>
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/tar")
+        process.arguments = ["-czf", archivePath.path] + files.map { $0.path }
+
+        let errorPipe = Pipe()
+        process.standardError = errorPipe
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+
+            if process.terminationStatus == 0 {
+                // Archive created successfully — remove the original files
+                var archivedCount = 0
+                for fileURL in files {
+                    try? FileManager.default.removeItem(at: fileURL)
+                    archivedCount += 1
+                }
+
+                // Log archive size
+                let archiveSize = (try? FileManager.default.attributesOfItem(atPath: archivePath.path)[.size] as? UInt64) ?? 0
+                DebugLog.info("archiveFiles(): created \(archivePath.lastPathComponent) (\(formatBytes(archiveSize))) from \(archivedCount) file(s)", source: "CaptureEngine")
+                return archivedCount
+            } else {
+                let stderr = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                DebugLog.error("archiveFiles(): tar failed with exit code \(process.terminationStatus): \(stderr)", source: "CaptureEngine")
+                return 0
+            }
+        } catch {
+            DebugLog.error("archiveFiles(): failed to run tar: \(error)", source: "CaptureEngine")
+            return 0
+        }
     }
 
     private func formatBytes(_ bytes: UInt64) -> String {

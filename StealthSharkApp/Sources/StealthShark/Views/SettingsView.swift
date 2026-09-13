@@ -21,6 +21,10 @@ struct SettingsView: View {
 
                 Stepper("Auto-cleanup after: \(prefs.cleanupAfterDays) days",
                         value: $prefs.cleanupAfterDays, in: 1...90)
+
+                Text("When disk usage exceeds the limit, old captures are compressed into archives instead of deleted. A warning is shown when usage exceeds 30 GB.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             Section("Auto-Restart") {

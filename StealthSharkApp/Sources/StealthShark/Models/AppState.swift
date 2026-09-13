@@ -142,7 +142,20 @@ final class AppState: ObservableObject {
                 if tickCount % 60 == 0 {
                     let prefs = self.sessionManager.loadPreferences()
                     self.captureEngine.cleanupOldCaptures(olderThan: prefs.cleanupAfterDays)
-                    self.captureEngine.enforceDiskLimit(maxGB: prefs.maxDiskUsageGB)
+                    let archivedCount = self.captureEngine.enforceDiskLimit(maxGB: prefs.maxDiskUsageGB)
+
+                    // Warn if disk usage exceeds 30 GB
+                    let overThreshold = self.captureEngine.checkDiskUsageWarning(thresholdGB: 30)
+                    if overThreshold {
+                        await MainActor.run {
+                            self.log("⚠️ Disk usage exceeds 30 GB — old captures are being archived", type: .warning)
+                            self.statusMessage = "⚠️ Disk usage warning: over 30 GB"
+                        }
+                    } else if archivedCount > 0 {
+                        await MainActor.run {
+                            self.log("Archived \(archivedCount) old capture file(s) to save disk space", type: .info)
+                        }
+                    }
                 }
 
                 // Auto-restart check every 10 seconds (every 10 ticks at 1s interval)
